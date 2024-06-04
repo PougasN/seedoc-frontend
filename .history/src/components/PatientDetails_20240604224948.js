@@ -216,11 +216,15 @@ const PatientDetails = () => {
 
   return (
     <div>
-        <button onClick={() => navigate('/')}>Back</button>        
+        <button onClick={() => navigate('/patients')}>Back</button>
         <h1>{patient}</h1>
         <button onClick={() => setShowModal(true)}>Add Encounter</button>
         {loading && <p>Loading...</p>}
-        <table>
+        {/* rest of your code */}
+      <h1>{patient}</h1>
+      <button onClick={() => setShowModal(true)}>Add Encounter</button>
+      {loading && <p>Loading...</p>}
+      <table>
         <thead>
           <tr>
             <th>#</th>

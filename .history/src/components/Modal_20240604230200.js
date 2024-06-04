@@ -26,20 +26,6 @@ const Modal = ({ show, handleClose, handleSave, newPatient, setNewPatient, newEn
               onChange={e => setNewPatient({ ...newPatient, familyName: e.target.value })}
               placeholder="Enter family name"
             />
-            <select
-              value={newPatient.gender}
-              onChange={e => setNewPatient({ ...newPatient, gender: e.target.value })}
-            >
-              <option value="">Select Gender</option>
-              <option value="male">Male</option>
-              <option value="female">Female</option>
-            </select>
-            <input
-              type="date"
-              value={newPatient.birthDate}
-              onChange={e => setNewPatient({ ...newPatient, birthDate: e.target.value })}
-              placeholder="Enter birth date"
-            />
           </>
         ) : (
           <>

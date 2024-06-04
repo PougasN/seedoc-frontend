@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import Modal from './Modal';
 import VideoUploadModal from './VideoUploadModal';
@@ -132,13 +132,8 @@ const PatientDetails = () => {
 
       console.log('Successfully uploaded video');
 
-      // Generate a pre-signed URL for GET (not PUT)
-      const getObjectParams = {
-        Bucket: 'seedoc-bucket',
-        Key: `videos/${file.name}`
-      };
-      const getCommand = new GetObjectCommand(getObjectParams);
-      const signedUrl = await getSignedUrl(s3Client, getCommand, { expiresIn: 43200 });
+      // Generate a pre-signed URL
+      const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 43200 });
       console.log('Signed URL:', signedUrl);
 
       // Send POST request to create Media resource
@@ -216,11 +211,10 @@ const PatientDetails = () => {
 
   return (
     <div>
-        <button onClick={() => navigate('/')}>Back</button>        
-        <h1>{patient}</h1>
-        <button onClick={() => setShowModal(true)}>Add Encounter</button>
-        {loading && <p>Loading...</p>}
-        <table>
+      <h1>{patient}</h1>
+      <button onClick={() => setShowModal(true)}>Add Encounter</button>
+      {loading && <p>Loading...</p>}
+      <table>
         <thead>
           <tr>
             <th>#</th>

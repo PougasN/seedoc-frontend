@@ -40,7 +40,7 @@ const Patients = () => {
       gender: newPatient.gender,
       birthDate: newPatient.birthDate
     };
-
+  
     fetch('http://localhost:9090/patient', {
       method: 'POST',
       headers: {
@@ -57,6 +57,7 @@ const Patients = () => {
       })
       .catch(error => console.error('Error adding patient:', error));
   };
+  
 
   const handlePatientClick = (id) => {
     navigate(`/patient/${id}`);

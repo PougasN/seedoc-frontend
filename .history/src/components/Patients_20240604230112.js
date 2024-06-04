@@ -77,7 +77,43 @@ const Patients = () => {
         handleSave={handleAddPatient}
         newPatient={newPatient}
         setNewPatient={setNewPatient}
-      />
+      >
+        <div>
+          <label>Given Name:</label>
+          <input
+            type="text"
+            value={newPatient.givenName}
+            onChange={(e) => setNewPatient({ ...newPatient, givenName: e.target.value })}
+          />
+        </div>
+        <div>
+          <label>Family Name:</label>
+          <input
+            type="text"
+            value={newPatient.familyName}
+            onChange={(e) => setNewPatient({ ...newPatient, familyName: e.target.value })}
+          />
+        </div>
+        <div>
+          <label>Gender:</label>
+          <select
+            value={newPatient.gender}
+            onChange={(e) => setNewPatient({ ...newPatient, gender: e.target.value })}
+          >
+            <option value="">Select Gender</option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+          </select>
+        </div>
+        <div>
+          <label>Birth Date:</label>
+          <input
+            type="date"
+            value={newPatient.birthDate}
+            onChange={(e) => setNewPatient({ ...newPatient, birthDate: e.target.value })}
+          />
+        </div>
+      </Modal>
     </div>
   );
 };

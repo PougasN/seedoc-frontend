@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import Modal from './Modal';
 import VideoUploadModal from './VideoUploadModal';
-import s3Client from './s3Client';
+import minioClient from './minioClient';
 import './PatientDetails.css';
 
 const PatientDetails = () => {
@@ -113,7 +111,7 @@ const PatientDetails = () => {
     setShowVideoModal(true);
   };
 
-  const handleUpload = async (file) => {
+  const handleUpload = (file) => {
     if (!file) {
       alert('Please select a file to upload');
       return;
@@ -126,88 +124,89 @@ const PatientDetails = () => {
       ContentType: file.type,
     };
 
-    try {
-      const command = new PutObjectCommand(params);
-      await s3Client.send(command);
+    minioClient.putObject(params.Bucket, params.Key, params.Body, params.ContentType, (err, etag) => {
+      if (err) {
+        console.error('Error uploading video:', err);
+        return;
+      }
 
-      console.log('Successfully uploaded video');
+      console.log('Successfully uploaded video:', etag);
 
-      // Generate a pre-signed URL for GET (not PUT)
-      const getObjectParams = {
-        Bucket: 'seedoc-bucket',
-        Key: `videos/${file.name}`
-      };
-      const getCommand = new GetObjectCommand(getObjectParams);
-      const signedUrl = await getSignedUrl(s3Client, getCommand, { expiresIn: 43200 });
-      console.log('Signed URL:', signedUrl);
-
-      // Send POST request to create Media resource
-      const mediaData = {
-        resourceType: "Media",
-        status: "completed",
-        type: {
-          text: "Video"
-        },
-        encounter: {
-          reference: `Encounter/${encounters[selectedEncounterIndex].id}`
-        },
-        content: {
-          url: signedUrl,
-          contentType: "video/mp4"
+      // Generate a pre-signed URL
+      minioClient.presignedUrl('GET', params.Bucket, params.Key, 43200, (err, presignedUrl) => {
+        if (err) {
+          console.error('Error generating pre-signed URL:', err);
+          return;
         }
-      };
 
-      fetch('http://localhost:9090/media', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/fhir+json',
-        },
-        body: JSON.stringify(mediaData),
-      })
-        .then(response => response.json())
-        .then(() => {
-          // Fetch the original encounter
-          fetch(`http://localhost:9090/encounter/${encounters[selectedEncounterIndex].id}`)
-            .then(response => response.json())
-            .then(originalEncounter => {
-              // Update encounter status
-              const updatedEncounter = {
-                ...originalEncounter,
-                status: "in-progress"
-              };
+        console.log('Signed URL:', presignedUrl);
 
-              fetch(`http://localhost:9090/encounter/${updatedEncounter.id}`, {
-                method: 'PUT',
-                headers: {
-                  'Content-Type': 'application/fhir+json',
-                },
-                body: JSON.stringify(updatedEncounter),
-              })
-                .then(response => response.json())
-                .then(() => {
-                  setEncounters(encounters.map((enc, i) => i === selectedEncounterIndex ? {
-                    ...enc,
-                    status: 'in-progress',
-                    videoUploaded: true,
-                    readEnabled: true,
-                    videoUrl: signedUrl
-                  } : enc));
-                  setShowVideoModal(false);
-                })
-                .catch(error => {
-                  console.error('Error updating encounter:', error);
-                });
-            })
-            .catch(error => {
-              console.error('Error fetching original encounter:', error);
-            });
+        // Send POST request to create Media resource
+        const mediaData = {
+          resourceType: "Media",
+          status: "completed",
+          type: {
+            text: "Video"
+          },
+          encounter: {
+            reference: `Encounter/${encounters[selectedEncounterIndex].id}`
+          },
+          content: {
+            url: presignedUrl,
+            contentType: "video/mp4"
+          }
+        };
+
+        fetch('http://localhost:9090/media', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/fhir+json',
+          },
+          body: JSON.stringify(mediaData),
         })
-        .catch(error => {
-          console.error('Error creating media resource:', error);
-        });
-    } catch (err) {
-      console.error('Error uploading video:', err);
-    }
+          .then(response => response.json())
+          .then(() => {
+            // Fetch the original encounter
+            fetch(`http://localhost:9090/encounter/${encounters[selectedEncounterIndex].id}`)
+              .then(response => response.json())
+              .then(originalEncounter => {
+                // Update encounter status
+                const updatedEncounter = {
+                  ...originalEncounter,
+                  status: "in-progress"
+                };
+
+                fetch(`http://localhost:9090/encounter/${updatedEncounter.id}`, {
+                  method: 'PUT',
+                  headers: {
+                    'Content-Type': 'application/fhir+json',
+                  },
+                  body: JSON.stringify(updatedEncounter),
+                })
+                  .then(response => response.json())
+                  .then(() => {
+                    setEncounters(encounters.map((enc, i) => i === selectedEncounterIndex ? {
+                      ...enc,
+                      status: 'in-progress',
+                      videoUploaded: true,
+                      readEnabled: true,
+                      videoUrl: presignedUrl
+                    } : enc));
+                    setShowVideoModal(false);
+                  })
+                  .catch(error => {
+                    console.error('Error updating encounter:', error);
+                  });
+              })
+              .catch(error => {
+                console.error('Error fetching original encounter:', error);
+              });
+          })
+          .catch(error => {
+            console.error('Error creating media resource:', error);
+          });
+      });
+    });
   };
 
   const handleReadClick = (videoUrl) => {
@@ -216,11 +215,10 @@ const PatientDetails = () => {
 
   return (
     <div>
-        <button onClick={() => navigate('/')}>Back</button>        
-        <h1>{patient}</h1>
-        <button onClick={() => setShowModal(true)}>Add Encounter</button>
-        {loading && <p>Loading...</p>}
-        <table>
+      <h1>{patient}</h1>
+      <button onClick={() => setShowModal(true)}>Add Encounter</button>
+      {loading && <p>Loading...</p>}
+      <table>
         <thead>
           <tr>
             <th>#</th>

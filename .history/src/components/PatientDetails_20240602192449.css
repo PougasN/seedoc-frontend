@@ -16,7 +16,8 @@ table {
     background-color: #f4f4f4;
   }
   
-  select, input[type="checkbox"], button {
+  select, input[type="checkbox"] {
+    width: 100%;
     padding: 10px;
     margin: 10px 0;
   }

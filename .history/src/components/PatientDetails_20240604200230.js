@@ -1,10 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { useParams } from 'react-router-dom';
 import Modal from './Modal';
-import VideoUploadModal from './VideoUploadModal';
-import s3Client from './s3Client';
+import s3 from './minioClient';
 import './PatientDetails.css';
 
 const PatientDetails = () => {
@@ -14,14 +11,13 @@ const PatientDetails = () => {
   const [showModal, setShowModal] = useState(false);
   const [newEncounter, setNewEncounter] = useState({ description: '', date: '', status: 'planned' });
   const [loading, setLoading] = useState(false);
-  const [showVideoModal, setShowVideoModal] = useState(false);
-  const [selectedEncounterIndex, setSelectedEncounterIndex] = useState(null);
-  const navigate = useNavigate();
+  const [selectedFile, setSelectedFile] = useState(null);
 
   useEffect(() => {
     fetch(`http://localhost:9090/patient/${patientId}`)
       .then(response => response.json())
       .then(data => {
+        console.log("Patient data:", data);
         const name = data.name[0];
         setPatient(`${name.given.join(' ')} ${name.family}`);
       })
@@ -30,6 +26,7 @@ const PatientDetails = () => {
     fetch(`http://localhost:9090/patient/${patientId}/encounters`)
       .then(response => response.json())
       .then(data => {
+        console.log("Encounters data:", data);
         if (data.entry) {
           const encounterList = data.entry.map(entry => {
             const resource = entry.resource;
@@ -37,7 +34,7 @@ const PatientDetails = () => {
             const description = resource.reasonCode && resource.reasonCode[0] ? resource.reasonCode[0].text : 'No Description';
             const status = resource.status || 'No Status';
             const date = resource.period && resource.period.start ? resource.period.start : 'No Date';
-            return { id, description, status, date, videoUploaded: false, readEnabled: false, dReport: false };
+            return { id, description, status, date, video: false, read: false, dReport: false };
           });
           setEncounters(encounterList);
         } else {
@@ -63,14 +60,16 @@ const PatientDetails = () => {
       status: newEncounter.status
     };
 
+    console.log("Encounter data to be sent:", encounterData);
+
     // Optimistically update the UI
     const optimisticEnc = {
       id: 'pending',
       description: newEncounter.description,
       status: newEncounter.status,
       date: new Date(newEncounter.date).toISOString(),
-      videoUploaded: false,
-      readEnabled: false,
+      video: false,
+      read: false,
       dReport: false
     };
     setEncounters([...encounters, optimisticEnc]);
@@ -84,13 +83,15 @@ const PatientDetails = () => {
     })
       .then(response => response.json())
       .then(data => {
+        console.log("Response data:", data);
+        // Update the optimistic encounter with the confirmed data
         setEncounters(encounters.map(enc => enc === optimisticEnc ? {
           id: data.id,
           description: data.reasonCode && data.reasonCode[0] ? data.reasonCode[0].text : 'No Description',
           status: data.status || 'No Status',
           date: data.period && data.period.start ? data.period.start : 'No Date',
-          videoUploaded: false,
-          readEnabled: false,
+          video: false,
+          read: false,
           dReport: false
         } : enc));
         setLoading(false); // Clear loading state
@@ -99,6 +100,7 @@ const PatientDetails = () => {
       })
       .catch(error => {
         console.error('Error adding encounter:', error);
+        // Remove the optimistic update if the request fails
         setEncounters(encounters.filter(enc => enc !== optimisticEnc));
         setLoading(false); // Clear loading state
       });
@@ -108,17 +110,20 @@ const PatientDetails = () => {
     setEncounters(encounters.map((enc, i) => i === index ? { ...enc, [field]: !enc[field] } : enc));
   };
 
-  const handleUploadClick = (index) => {
-    setSelectedEncounterIndex(index);
-    setShowVideoModal(true);
+  const handleFileChange = (event, index) => {
+    const file = event.target.files[0];
+    if (file) {
+      setSelectedFile({ file, index });
+    }
   };
 
-  const handleUpload = async (file) => {
-    if (!file) {
+  const handleUpload = (index) => {
+    if (!selectedFile || selectedFile.index !== index) {
       alert('Please select a file to upload');
       return;
     }
 
+    const file = selectedFile.file;
     const params = {
       Bucket: 'seedoc-bucket',
       Key: `videos/${file.name}`,
@@ -126,101 +131,24 @@ const PatientDetails = () => {
       ContentType: file.type,
     };
 
-    try {
-      const command = new PutObjectCommand(params);
-      await s3Client.send(command);
+    s3.upload(params, (err, data) => {
+      if (err) {
+        console.error('Error uploading video:', err);
+        return;
+      }
 
-      console.log('Successfully uploaded video');
-
-      // Generate a pre-signed URL for GET (not PUT)
-      const getObjectParams = {
-        Bucket: 'seedoc-bucket',
-        Key: `videos/${file.name}`
-      };
-      const getCommand = new GetObjectCommand(getObjectParams);
-      const signedUrl = await getSignedUrl(s3Client, getCommand, { expiresIn: 43200 });
-      console.log('Signed URL:', signedUrl);
-
-      // Send POST request to create Media resource
-      const mediaData = {
-        resourceType: "Media",
-        status: "completed",
-        type: {
-          text: "Video"
-        },
-        encounter: {
-          reference: `Encounter/${encounters[selectedEncounterIndex].id}`
-        },
-        content: {
-          url: signedUrl,
-          contentType: "video/mp4"
-        }
-      };
-
-      fetch('http://localhost:9090/media', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/fhir+json',
-        },
-        body: JSON.stringify(mediaData),
-      })
-        .then(response => response.json())
-        .then(() => {
-          // Fetch the original encounter
-          fetch(`http://localhost:9090/encounter/${encounters[selectedEncounterIndex].id}`)
-            .then(response => response.json())
-            .then(originalEncounter => {
-              // Update encounter status
-              const updatedEncounter = {
-                ...originalEncounter,
-                status: "in-progress"
-              };
-
-              fetch(`http://localhost:9090/encounter/${updatedEncounter.id}`, {
-                method: 'PUT',
-                headers: {
-                  'Content-Type': 'application/fhir+json',
-                },
-                body: JSON.stringify(updatedEncounter),
-              })
-                .then(response => response.json())
-                .then(() => {
-                  setEncounters(encounters.map((enc, i) => i === selectedEncounterIndex ? {
-                    ...enc,
-                    status: 'in-progress',
-                    videoUploaded: true,
-                    readEnabled: true,
-                    videoUrl: signedUrl
-                  } : enc));
-                  setShowVideoModal(false);
-                })
-                .catch(error => {
-                  console.error('Error updating encounter:', error);
-                });
-            })
-            .catch(error => {
-              console.error('Error fetching original encounter:', error);
-            });
-        })
-        .catch(error => {
-          console.error('Error creating media resource:', error);
-        });
-    } catch (err) {
-      console.error('Error uploading video:', err);
-    }
-  };
-
-  const handleReadClick = (videoUrl) => {
-    navigate(`/video/${encodeURIComponent(videoUrl)}`);
+      console.log('Successfully uploaded video:', data);
+      alert('Video uploaded successfully');
+      setSelectedFile(null);
+    });
   };
 
   return (
     <div>
-        <button onClick={() => navigate('/')}>Back</button>        
-        <h1>{patient}</h1>
-        <button onClick={() => setShowModal(true)}>Add Encounter</button>
-        {loading && <p>Loading...</p>}
-        <table>
+      <h1>{patient}</h1>
+      <button onClick={() => setShowModal(true)}>Add Encounter</button>
+      {loading && <p>Loading...</p>}
+      <table>
         <thead>
           <tr>
             <th>#</th>
@@ -247,18 +175,15 @@ const PatientDetails = () => {
                 <td>{encounter.status}</td>
                 <td>{new Date(encounter.date).toLocaleString()}</td>
                 <td>
-                  {encounter.videoUploaded ? (
-                    <span>A video has been uploaded</span>
-                  ) : (
-                    <button onClick={() => handleUploadClick(index)}>Upload Video</button>
-                  )}
+                  <input type="file" onChange={(e) => handleFileChange(e, index)} />
+                  <button onClick={() => handleUpload(index)}>Upload Video</button>
                 </td>
                 <td>
-                  {encounter.readEnabled ? (
-                    <button onClick={() => handleReadClick(encounter.videoUrl)}>Read</button>
-                  ) : (
-                    <button disabled>Read</button>
-                  )}
+                  <input
+                    type="checkbox"
+                    checked={encounter.read || false}
+                    onChange={() => handleCheckboxChange(index, 'read')}
+                  />
                 </td>
                 <td><button>D-Report</button></td>
               </tr>
@@ -272,11 +197,6 @@ const PatientDetails = () => {
         handleSave={handleAddEncounter}
         newEncounter={newEncounter}
         setNewEncounter={setNewEncounter}
-      />
-      <VideoUploadModal
-        show={showVideoModal}
-        handleClose={() => setShowVideoModal(false)}
-        handleUpload={handleUpload}
       />
     </div>
   );

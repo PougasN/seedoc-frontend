@@ -11,7 +11,7 @@ function App() {
       <Routes>
         <Route path="/" element={<Patients />} />
         <Route path="/patient/:patientId" element={<PatientDetails />} />
-        <Route path="/video/:videoUrl" element={<VideoPlayer />} />
+        <Route path="/video/:videoUrl" component={VideoPlayer} />
       </Routes>
     </Router>
   );
