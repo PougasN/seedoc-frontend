@@ -1,0 +1,67 @@
+/* App.css */
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+}
+
+.fixed-width {
+  width: 80%;
+  max-width: 800px;
+  margin: 20px;
+}
+
+.table-container {
+  width: 100%;
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+table th, table td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: center;
+}
+
+table th {
+  cursor: pointer;
+}
+
+input[type="text"] {
+  margin-bottom: 10px;
+  padding: 8px;
+  width: calc(100% - 16px);
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  max-width: 800px;
+  padding: 10px;
+  background-color: #f8f8f8;
+}
+
+header h1 {
+  margin: 0;
+}
+
+header .username-logout {
+  display: flex;
+  align-items: center;
+}
+
+header .username-logout span {
+  margin-right: 10px;
+}
+
+header .username-logout button {
+  padding: 5px 10px;
+}

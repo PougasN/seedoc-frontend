@@ -1,0 +1,41 @@
+/* Patients.css */
+.container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+  
+  .table-container {
+    width: 80%;
+    max-width: 800px;
+    margin: 20px auto;
+    overflow-x: auto;
+  }
+  
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  
+  table th, table td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: left;
+  }
+  
+  table th {
+    cursor: pointer;
+  }
+  
+  table th, table td {
+    text-align: center;
+  }
+  
+  input[type="text"] {
+    margin-bottom: 10px;
+    padding: 8px;
+    width: calc(100% - 16px);
+  }
+  
