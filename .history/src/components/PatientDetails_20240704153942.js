@@ -187,7 +187,7 @@ const PatientDetails = () => {
         return '#d3d3d3'; // light gray
       case 'in-progress':
         return '#ffffcc'; // light yellow
-      case 'finished':
+      case 'completed':
         return '#ccffcc'; // light green
       case 'cancelled':
         return '#ffcccc'; // light red
@@ -197,62 +197,46 @@ const PatientDetails = () => {
   };
 
   const generatePDF = async (encounter) => {
+    const doc = new jsPDF();
+    doc.text(`SeeDoc`, 10, 280);
+    doc.text(`${patient}`, 10, 10);
+    doc.text(`Description: ${encounter.description}`, 10, 20);
+    doc.text(`Status: ${encounter.status}`, 10, 30);
+    doc.text(`${new Date(encounter.date).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })}`, 10, 40);
+    doc.text(`Encounter ID: ${encounter.id}`, 10, 50);
+
     try {
-      const response = await fetch(`http://localhost:9090/diagnostic-report?encounterId=${encounter.id}`);
-      
-      if (response.status === 404) {
-        // Generate PDF without conclusion and images
-        const doc = new jsPDF();
-        doc.text(`SeeDoc`, 10, 280);
-        doc.text(`Patient: ${patient}`, 10, 10);
-        doc.text(`Status: ${encounter.status}`, 10, 30);        
-        doc.text(`Encounter ID: ${encounter.id}`, 10, 50);
-        doc.save(`Encounter_${encounter.id}.pdf`);
-        return;
+      const diagnosticReportResponse = await fetch(`http://localhost:9090/diagnostic-report?encounterId=${encounter.id}`);
+      if (diagnosticReportResponse.ok) {
+        const diagnosticReport = await diagnosticReportResponse.json();
+        if (diagnosticReport) {
+          doc.text(`Conclusion: ${diagnosticReport.conclusion}`, 10, 60);
+
+          const attachments = diagnosticReport.presentedForm;
+          let yPosition = 70;
+          for (const attachment of attachments) {
+            if (attachment.contentType === 'image/png' || attachment.contentType === 'image/jpeg') {
+              const imageUrl = attachment.url;
+              const img = new Image();
+              img.src = imageUrl;
+
+              img.onload = function() {
+                const aspectRatio = img.width / img.height;
+                const imgWidth = 60;
+                const imgHeight = imgWidth / aspectRatio;
+                doc.addImage(img, 'PNG', 10, yPosition, imgWidth, imgHeight);
+                yPosition += imgHeight + 10;
+              };
+            }
+          }
+        }
       }
-      
-      const data = await response.json();
-      const doc = new jsPDF();
-      doc.text(`SeeDoc`, 10, 280);
-      doc.text(`Patient: ${patient}`, 10, 10);
-      doc.text(`Status: ${encounter.status}`, 10, 20);      
-      doc.text(`Encounter ID: ${encounter.id}`, 10, 30);
-  
-      if (data.resourceType === "DiagnosticReport") {
-        doc.text(`Conclusion: ${data.conclusion}`, 10, 50);
-  
-        let currentY = 60; // Start position for images
-        const maxY = 270; // Maximum Y position on a page
-  
-        const imagePromises = data.presentedForm.map((form, index) => {
-          return new Promise((resolve) => {
-            const img = new Image();
-            img.src = form.url;
-            img.onload = () => {
-              const imgWidth = 100; // Fixed width for images
-              const imgHeight = (img.height / img.width) * imgWidth; // Maintain aspect ratio
-  
-              if (currentY + imgHeight > maxY) {
-                doc.addPage();
-                currentY = 10; // Reset Y position for new page
-              }
-  
-              doc.addImage(img, 'PNG', 10, currentY, imgWidth, imgHeight); // Adjust the positioning as needed
-              currentY += imgHeight + 10; // Add space between images
-  
-              resolve();
-            };
-          });
-        });
-  
-        await Promise.all(imagePromises);
-      }
-  
-      doc.save(`Encounter_${encounter.id}.pdf`);
     } catch (error) {
-      console.error('Error generating PDF:', error);      
+      console.error('Error fetching diagnostic report:', error);
     }
-  }; 
+
+    doc.save(`Encounter_${encounter.id}.pdf`);
+  };
 
   return (
     <div>

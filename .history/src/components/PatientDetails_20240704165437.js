@@ -175,7 +175,7 @@ const PatientDetails = () => {
       }
   
       const mediaId = mediaExtension.valueReference.reference.split('/')[1];
-      navigate(`/video/${encounter.id}/${mediaId}`);
+      navigate(`/video/${encounter.id}/${mediaId}/${patientId}`);
     } catch (error) {
       console.error('Error fetching encounter details:', error);
     }

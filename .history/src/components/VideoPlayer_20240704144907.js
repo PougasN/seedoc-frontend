@@ -18,10 +18,6 @@ const VideoPlayer = () => {
   const [error, setError] = useState(null);
   const [videoUrl, setVideoUrl] = useState('');
 
-  const [showReportModal, setShowReportModal] = useState(false);
-  const [selectedFrames, setSelectedFrames] = useState([]);
-  const [conclusion, setConclusion] = useState('');
-
   useEffect(() => {
     const fetchMedia = async () => {
       try {
@@ -152,75 +148,6 @@ const VideoPlayer = () => {
     setShowFindingsModal(true);
   };
 
-  const handleFinalization = async () => {
-    const diagnosticReport = {
-      resourceType: "DiagnosticReport",
-      status: "final",
-      code: {
-        text: "Diagnostic Report"
-      },
-      // subject: {
-      //   reference: `Patient/${encounter.subject}` // replace with actual patientId
-      // },
-      encounter: {
-        reference: `Encounter/${encounterId}` // replace with actual encounterId
-      },
-      conclusion: conclusion,
-      presentedForm: selectedFrames.map((frameUrl, index) => ({
-        contentType: "image/png",
-        url: frameUrl,
-        title: `Frame ${index + 1}`
-      }))
-    };
-  
-    try {
-      const response = await fetch('http://localhost:9090/diagnostic-report', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/fhir+json',
-        },
-        body: JSON.stringify(diagnosticReport),
-      });
-  
-      if (!response.ok) {
-        throw new Error('Error creating diagnostic report');
-      }
-  
-      const savedReport = await response.json();
-      console.log('Diagnostic Report created with ID = ', savedReport.id);
-        
-      // Update encounter status to completed
-      const updateEncounterResponse = await fetch(`http://localhost:9090/encounter/${encounterId}/status`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ status: 'finished' }),
-      });
-
-      if (!updateEncounterResponse.ok) {
-        throw new Error('Error updating encounter status');
-      }
-
-
-      // Fetch encounter to get patientId
-      const encounterResponse = await fetch(`http://localhost:9090/encounter/${encounterId}`);
-      if (!encounterResponse.ok) {
-        throw new Error('Error fetching encounter');
-      }
-
-      const encounterData = await encounterResponse.json();
-      const patientId = encounterData.subject.reference.split('/')[1];
-
-      setShowReportModal(false);
-      setSelectedFrames([]);
-      setConclusion('');
-      navigate(`/patient/${patientId}`);
-    } catch (err) {
-      console.error('Error creating diagnostic report:', err);
-    }
-  };
-
   return (
     <div className="video-player-container">
       <div className="header">
@@ -291,44 +218,6 @@ const VideoPlayer = () => {
               </ul>
             )}
             <button onClick={() => setShowFindingsModal(false)}>Close</button>
-          </div>
-        </div>
-      )}
-
-      {showReportModal && (
-        <div className="modal">
-          <div className="modal-content">
-            <h2>Report</h2>
-            <div className="frames-selection">
-              {findings.map((finding, index) => (
-                <div key={index}>
-                  <input 
-                    type="checkbox" 
-                    id={`frame-${index}`} 
-                    value={finding.frameUrl} 
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setSelectedFrames([...selectedFrames, e.target.value]);
-                      } else {
-                        setSelectedFrames(selectedFrames.filter(frame => frame !== e.target.value));
-                      }
-                    }}
-                  />
-                  <label htmlFor={`frame-${index}`}>
-                    <img src={finding.frameUrl} alt={`Frame at ${finding.time}`} width="90" height="90" />
-                  </label>
-                </div>
-              ))}
-            </div>
-            <textarea
-              value={conclusion}
-              onChange={(e) => setConclusion(e.target.value)}
-              placeholder="Write your conclusion here"
-            />
-            <div className="modal-buttons">
-              <button onClick={handleFinalization}>Finalization</button>
-              <button onClick={() => setShowReportModal(false)}>Cancel</button>
-            </div>
           </div>
         </div>
       )}

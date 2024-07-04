@@ -187,7 +187,7 @@ const PatientDetails = () => {
         return '#d3d3d3'; // light gray
       case 'in-progress':
         return '#ffffcc'; // light yellow
-      case 'finished':
+      case 'completed':
         return '#ccffcc'; // light green
       case 'cancelled':
         return '#ffcccc'; // light red
@@ -250,9 +250,29 @@ const PatientDetails = () => {
   
       doc.save(`Encounter_${encounter.id}.pdf`);
     } catch (error) {
-      console.error('Error generating PDF:', error);      
+      console.error('Error generating PDF:', error);
+  
+      // Generate PDF without conclusion and images
+      const doc = new jsPDF();
+      doc.text(`SeeDoc`, 10, 280);
+      doc.text(`${patient}`, 10, 10);
+      doc.text(`Description: ${encounter.description}`, 10, 20);
+      doc.text(`Status: ${encounter.status}`, 10, 30);
+      doc.text(`${new Date(encounter.date).toLocaleString('en-GB', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true
+      })}`, 10, 40);
+      doc.text(`Encounter ID: ${encounter.id}`, 10, 50);
+      doc.save(`Encounter_${encounter.id}.pdf`);
     }
-  }; 
+  };
+  
+  
+  
 
   return (
     <div>

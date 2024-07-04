@@ -190,12 +190,12 @@ const VideoPlayer = () => {
       console.log('Diagnostic Report created with ID = ', savedReport.id);
         
       // Update encounter status to completed
-      const updateEncounterResponse = await fetch(`http://localhost:9090/encounter/${encounterId}/status`, {
+      const updateEncounterResponse = await fetch(`http://localhost:9090/encounter/${encounterId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ status: 'finished' }),
+        body: JSON.stringify({ status: 'completed' }),
       });
 
       if (!updateEncounterResponse.ok) {
@@ -203,19 +203,12 @@ const VideoPlayer = () => {
       }
 
 
-      // Fetch encounter to get patientId
-      const encounterResponse = await fetch(`http://localhost:9090/encounter/${encounterId}`);
-      if (!encounterResponse.ok) {
-        throw new Error('Error fetching encounter');
-      }
-
-      const encounterData = await encounterResponse.json();
-      const patientId = encounterData.subject.reference.split('/')[1];
-
       setShowReportModal(false);
       setSelectedFrames([]);
       setConclusion('');
-      navigate(`/patient/${patientId}`);
+
+      // Navigate back to patient details page
+      navigate(`/patient/${encounterId}`);
     } catch (err) {
       console.error('Error creating diagnostic report:', err);
     }

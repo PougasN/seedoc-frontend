@@ -159,9 +159,9 @@ const VideoPlayer = () => {
       code: {
         text: "Diagnostic Report"
       },
-      // subject: {
-      //   reference: `Patient/${encounter.subject}` // replace with actual patientId
-      // },
+      subject: {
+        reference: `Patient/${patientId}` // replace with actual patientId
+      },
       encounter: {
         reference: `Encounter/${encounterId}` // replace with actual encounterId
       },
@@ -174,7 +174,7 @@ const VideoPlayer = () => {
     };
   
     try {
-      const response = await fetch('http://localhost:9090/diagnostic-report', {
+      const response = await fetch('http://localhost:9090/diagnosticReport', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/fhir+json',
@@ -188,34 +188,9 @@ const VideoPlayer = () => {
   
       const savedReport = await response.json();
       console.log('Diagnostic Report created with ID = ', savedReport.id);
-        
-      // Update encounter status to completed
-      const updateEncounterResponse = await fetch(`http://localhost:9090/encounter/${encounterId}/status`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ status: 'finished' }),
-      });
-
-      if (!updateEncounterResponse.ok) {
-        throw new Error('Error updating encounter status');
-      }
-
-
-      // Fetch encounter to get patientId
-      const encounterResponse = await fetch(`http://localhost:9090/encounter/${encounterId}`);
-      if (!encounterResponse.ok) {
-        throw new Error('Error fetching encounter');
-      }
-
-      const encounterData = await encounterResponse.json();
-      const patientId = encounterData.subject.reference.split('/')[1];
-
       setShowReportModal(false);
       setSelectedFrames([]);
       setConclusion('');
-      navigate(`/patient/${patientId}`);
     } catch (err) {
       console.error('Error creating diagnostic report:', err);
     }

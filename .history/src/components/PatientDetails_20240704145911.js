@@ -18,38 +18,47 @@ const PatientDetails = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetch(`http://localhost:9090/patient/${patientId}`)
-      .then(response => response.json())
-      .then(data => {
-        const name = data.name[0];
+    const fetchPatientDetails = async () => {
+      try {
+        const patientResponse = await fetch(`http://localhost:9090/patient/${patientId}`);
+        const patientData = await patientResponse.json();
+        const name = patientData.name[0];
         setPatient(`${name.given.join(' ')} ${name.family}`);
-      })
-      .catch(error => console.error('Error fetching patient:', error));
-
-    fetch(`http://localhost:9090/patient/${patientId}/encounters`)
-      .then(response => response.json())
-      .then(data => {
-        if (data.entry) {
-          const encounterList = data.entry.map(entry => {
+  
+        const encounterResponse = await fetch(`http://localhost:9090/patient/${patientId}/encounters`);
+        const encounterData = await encounterResponse.json();
+        if (encounterData.entry) {
+          const encounterList = await Promise.all(encounterData.entry.map(async entry => {
             const resource = entry.resource;
             const id = resource.id;
             const description = resource.reasonCode && resource.reasonCode[0] ? resource.reasonCode[0].text : 'No Description';
             const status = resource.status || 'No Status';
             const date = resource.period && resource.period.start ? resource.period.start : 'No Date';
-
+  
             // Check for videoUploaded extension
             const videoUploadedExtension = resource.extension && resource.extension.find(ext => ext.url === 'http://example.com/fhir/StructureDefinition/videoUploaded');
             const videoUploaded = videoUploadedExtension ? videoUploadedExtension.valueBoolean : false;
-
-            return { id, description, status, date, videoUploaded, readEnabled: videoUploaded, dReport: false };
-          });
+  
+            // Fetch DiagnosticReport for the encounter
+            const diagnosticReportResponse = await fetch(`http://localhost:9090/diagnosticReport?encounterId=${id}`);
+            const diagnosticReportData = await diagnosticReportResponse.json();
+            const diagnosticReport = diagnosticReportData.length ? diagnosticReportData[0] : null;
+  
+            return { id, description, status, date, videoUploaded, readEnabled: videoUploaded, dReport: !!diagnosticReport, diagnosticReport };
+          }));
           encounterList.sort((a, b) => new Date(a.date) - new Date(b.date));
           setEncounters(encounterList);
         } else {
           setEncounters([]); // No encounters
         }
-      });
+      } catch (error) {
+        console.error('Error fetching patient details:', error);
+      }
+    };
+  
+    fetchPatientDetails();
   }, [patientId]);
+  
 
   const handleAddEncounter = () => {
     setLoading(true); // Set loading state
@@ -187,7 +196,7 @@ const PatientDetails = () => {
         return '#d3d3d3'; // light gray
       case 'in-progress':
         return '#ffffcc'; // light yellow
-      case 'finished':
+      case 'completed':
         return '#ccffcc'; // light green
       case 'cancelled':
         return '#ffcccc'; // light red
@@ -196,63 +205,16 @@ const PatientDetails = () => {
     }
   };
 
-  const generatePDF = async (encounter) => {
-    try {
-      const response = await fetch(`http://localhost:9090/diagnostic-report?encounterId=${encounter.id}`);
-      
-      if (response.status === 404) {
-        // Generate PDF without conclusion and images
-        const doc = new jsPDF();
-        doc.text(`SeeDoc`, 10, 280);
-        doc.text(`Patient: ${patient}`, 10, 10);
-        doc.text(`Status: ${encounter.status}`, 10, 30);        
-        doc.text(`Encounter ID: ${encounter.id}`, 10, 50);
-        doc.save(`Encounter_${encounter.id}.pdf`);
-        return;
-      }
-      
-      const data = await response.json();
-      const doc = new jsPDF();
-      doc.text(`SeeDoc`, 10, 280);
-      doc.text(`Patient: ${patient}`, 10, 10);
-      doc.text(`Status: ${encounter.status}`, 10, 20);      
-      doc.text(`Encounter ID: ${encounter.id}`, 10, 30);
-  
-      if (data.resourceType === "DiagnosticReport") {
-        doc.text(`Conclusion: ${data.conclusion}`, 10, 50);
-  
-        let currentY = 60; // Start position for images
-        const maxY = 270; // Maximum Y position on a page
-  
-        const imagePromises = data.presentedForm.map((form, index) => {
-          return new Promise((resolve) => {
-            const img = new Image();
-            img.src = form.url;
-            img.onload = () => {
-              const imgWidth = 100; // Fixed width for images
-              const imgHeight = (img.height / img.width) * imgWidth; // Maintain aspect ratio
-  
-              if (currentY + imgHeight > maxY) {
-                doc.addPage();
-                currentY = 10; // Reset Y position for new page
-              }
-  
-              doc.addImage(img, 'PNG', 10, currentY, imgWidth, imgHeight); // Adjust the positioning as needed
-              currentY += imgHeight + 10; // Add space between images
-  
-              resolve();
-            };
-          });
-        });
-  
-        await Promise.all(imagePromises);
-      }
-  
-      doc.save(`Encounter_${encounter.id}.pdf`);
-    } catch (error) {
-      console.error('Error generating PDF:', error);      
-    }
-  }; 
+  const generatePDF = (encounter) => {
+    const doc = new jsPDF();
+    doc.text(`SeeDoc`, 10, 280);
+    doc.text(`${patient}`, 10, 10);
+    doc.text(`Description: ${encounter.description}`, 10, 20);
+    doc.text(`Status: ${encounter.status}`, 10, 30);
+    doc.text(`${new Date(encounter.date).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })}`, 10, 40);
+    doc.text(`Encounter ID: ${encounter.id}`, 10, 50);
+    doc.save(`Encounter_${encounter.id}.pdf`);
+  };
 
   return (
     <div>

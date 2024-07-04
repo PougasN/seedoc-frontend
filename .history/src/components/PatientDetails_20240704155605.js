@@ -187,7 +187,7 @@ const PatientDetails = () => {
         return '#d3d3d3'; // light gray
       case 'in-progress':
         return '#ffffcc'; // light yellow
-      case 'finished':
+      case 'completed':
         return '#ccffcc'; // light green
       case 'cancelled':
         return '#ffcccc'; // light red
@@ -252,7 +252,10 @@ const PatientDetails = () => {
     } catch (error) {
       console.error('Error generating PDF:', error);      
     }
-  }; 
+  };
+  
+  
+  
 
   return (
     <div>
