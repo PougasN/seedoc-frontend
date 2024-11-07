@@ -1,6 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import ReactPlayer from 'react-player';
+import Sidebar from './Sidebar';
 import { useNavigate, useParams } from 'react-router-dom';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faSpinner, faFileWaveform, faInfo, faBars, faInfoCircle, faPlay, faPause, faUndoAlt, faRedoAlt, faStepBackward, faStepForward, faForward, faForwardFast, faBackwardFast, faBackward, faCircleArrowLeft, faCirclePlus } from '@fortawesome/free-solid-svg-icons';
 import './VideoPlayer.css';
 
 const VideoPlayer = () => {
@@ -17,39 +20,96 @@ const VideoPlayer = () => {
   const [showFindingsModal, setShowFindingsModal] = useState(false);
   const [error, setError] = useState(null);
   const [videoUrl, setVideoUrl] = useState('');
-
   const [showReportModal, setShowReportModal] = useState(false);
   const [selectedFrames, setSelectedFrames] = useState([]);
   const [conclusion, setConclusion] = useState('');
+  const [speed, setSpeed] = useState(1);
+  const [duration, setDuration] = useState(0);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [patientDetails, setPatientDetails] = useState({
+    patientId: '',
+    name: '',
+    surname: '',
+    birthdate: '',
+    gender: ''
+});
+  const [showFindingModal, setShowFindingModal] = useState(false);
+  const [selectedFinding, setSelectedFinding] = useState(null);
+  const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+  
 
   useEffect(() => {
+    const fetchVideo = async () => {
+      try {
+        const response = await fetch(`${process.env.REACT_APP_API_URL}/video/${encounterId}`);
+        if (response.ok) {
+          const blob = await response.blob();
+          const videoUrl = URL.createObjectURL(blob);
+          setVideoUrl(videoUrl);
+        } else {
+          console.error('Error fetching video:', response.statusText);
+        }
+      } catch (err) {
+        console.error('Error fetching video:', err);
+      }
+    };  
     const fetchMedia = async () => {
       try {
-        const response = await fetch(`http://localhost:9090/media/${mediaId}`);
+        const response = await fetch(`${process.env.REACT_APP_API_URL}/media/${mediaId}`);
         const data = await response.json();
         if (data && data.content && data.content.url) {
-          setVideoUrl(data.content.url); // Set the video URL from the media resource
-          fetchFindings(mediaId);
+          fetchFindings();
         }
       } catch (err) {
         console.error('Error fetching media:', err);
       }
-    };
-
-    const fetchFindings = async (mediaId) => {
+    };    
+    const fetchEncounterAndPatientDetails = async () => {
       try {
-        const response = await fetch(`http://localhost:9090/findings/${mediaId}`);
-        const data = await response.json();
-        setFindings(data);
-      } catch (err) {
-        console.error('Error fetching findings:', err);
+        const encounterResponse = await fetch(`${process.env.REACT_APP_API_URL}/encounter/${encounterId}`);
+        const encounterData = await encounterResponse.json();  
+        const patientId = encounterData.subject.reference.split('/')[1];  
+        const patientResponse = await fetch(`${process.env.REACT_APP_API_URL}/patient/${patientId}`);
+        const patientData = await patientResponse.json();  
+        setPatientDetails({
+          patientId: patientData.id,
+          name: patientData.name[0].given[0],
+          surname: patientData.name[0].family,
+          birthdate: patientData.birthDate,
+          gender: patientData.gender
+        });
+      } catch (error) {
+        console.error('Error fetching patient details:', error);
       }
-    };
-
+    };  
+    if (encounterId) {
+      fetchEncounterAndPatientDetails();
+    }
     if (mediaId) {
       fetchMedia();
+      fetchFindings();
+    }    
+    if (encounterId) {
+      fetchVideo();
     }
-  }, [mediaId]);
+    setTimeout(() => {
+      setIsLoading(false);
+    }, 2000);
+  }, [mediaId, encounterId]);
+
+  const fetchFindings = async () => {
+    if (!mediaId) return;
+    try {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/findings/get/${mediaId}`);
+      const data = await response.json();
+      setFindings(data);
+      console.log('fetched FINDINGS successfully!!!')
+    } catch (err) {
+      console.error('Error fetching findings:', err);
+    }
+  }
+  
 
   const handlePlayPause = () => {
     setIsPlaying(!isPlaying);
@@ -104,37 +164,45 @@ const VideoPlayer = () => {
       }
     }
   };
+  
 
   const handleSaveComment = async () => {
     const newFinding = {
-      mediaId: mediaId,
-      time: currentTime,
-      comment: comment,
-      frame: currentFrame,
+        mediaId: mediaId,
+        time: currentTime,
+        comment: comment,
+        frame: currentFrame,
     };
 
     try {
-      const formData = new FormData();
-      formData.append('mediaId', newFinding.mediaId);
-      formData.append('time', newFinding.time);
-      formData.append('comment', newFinding.comment);
-      
-      const uniqueFrameName = `frame-${new Date().getTime()}.png`;
-      formData.append('frame', dataURLtoFile(newFinding.frame, uniqueFrameName));
+        const formData = new FormData();
+        formData.append('mediaId', newFinding.mediaId);
+        formData.append('time', newFinding.time);
+        formData.append('comment', newFinding.comment);
 
-      const response = await fetch('http://localhost:9090/findings', {
-        method: 'POST',
-        body: formData,
-      });
+        const uniqueFrameName = `frame-${new Date().getTime()}.png`;
+        formData.append('frame', dataURLtoFile(newFinding.frame, uniqueFrameName));
 
-      const savedFinding = await response.json();
-      setFindings([...findings, savedFinding]);
-      setShowCommentModal(false);
-      setComment('');
+        const response = await fetch(`${process.env.REACT_APP_API_URL}/findings`, {
+            method: 'POST',
+            body: formData,
+        });
+
+        if (response.ok) {
+            await response.json(); // Wait for the response and ignore the savedFinding here
+            setShowCommentModal(false);
+            setComment('');
+
+            // Refresh findings list
+            fetchFindings();
+        } else {
+            console.error('Error saving finding:', response.statusText);
+        }
     } catch (err) {
-      console.error('Error saving comment:', err);
+        console.error('Error saving comment:', err);
     }
   };
+
 
   const dataURLtoFile = (dataUrl, filename) => {
     const arr = dataUrl.split(',');
@@ -158,10 +226,7 @@ const VideoPlayer = () => {
       status: "final",
       code: {
         text: "Diagnostic Report"
-      },
-      // subject: {
-      //   reference: `Patient/${encounter.subject}` // replace with actual patientId
-      // },
+      },      
       encounter: {
         reference: `Encounter/${encounterId}` // replace with actual encounterId
       },
@@ -174,7 +239,7 @@ const VideoPlayer = () => {
     };
   
     try {
-      const response = await fetch('http://localhost:9090/diagnostic-report', {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/diagnostic-report`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/fhir+json',
@@ -190,7 +255,7 @@ const VideoPlayer = () => {
       console.log('Diagnostic Report created with ID = ', savedReport.id);
         
       // Update encounter status to completed
-      const updateEncounterResponse = await fetch(`http://localhost:9090/encounter/${encounterId}/status`, {
+      const updateEncounterResponse = await fetch(`${process.env.REACT_APP_API_URL}/encounter/${encounterId}/status`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -202,9 +267,8 @@ const VideoPlayer = () => {
         throw new Error('Error updating encounter status');
       }
 
-
       // Fetch encounter to get patientId
-      const encounterResponse = await fetch(`http://localhost:9090/encounter/${encounterId}`);
+      const encounterResponse = await fetch(`${process.env.REACT_APP_API_URL}/encounter/${encounterId}`);
       if (!encounterResponse.ok) {
         throw new Error('Error fetching encounter');
       }
@@ -221,54 +285,207 @@ const VideoPlayer = () => {
     }
   };
 
+  const handleSpeedChange = (event) => {
+    const newSpeed = parseFloat(event.target.value);
+    setSpeed(newSpeed);
+  };
+
+  const formatTime = (seconds) => {
+    const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
+    const m = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
+    const s = Math.floor(seconds % 60).toString().padStart(2, '0');
+    
+    return `${h}:${m}:${s}`;
+  };
+
+  const toggleSidebar = () => {
+    setIsSidebarOpen(!isSidebarOpen);
+  };
+
+  const handleFindingClick = (finding) => {
+    setSelectedFinding(finding);
+    setShowFindingModal(true);
+  };
+  
+  const closeFindingModal = () => {
+    setShowFindingModal(false);
+    setSelectedFinding(null);
+  };
+  
+  const goToFinding = () => {
+    if (playerRef.current && selectedFinding) {
+      playerRef.current.seekTo(selectedFinding.time);
+      setShowFindingModal(false);
+    }
+  };
+
+  const toggleRightSidebar = () => {
+    setIsRightSidebarOpen(!isRightSidebarOpen);
+  };
+
   return (
     <div className="video-player-container">
-      <div className="header">
-        <button onClick={() => navigate(-1)}>Back</button>
-        <div className="ids">
-          <span>Encounter ID: {encounterId}</span>
-          <span>Media ID: {mediaId}</span>
-        </div>
+      {isLoading ? (
+      <div className="loading-container">
+        <FontAwesomeIcon icon={faSpinner} spin size="5x" />
       </div>
-      <div className="video-section">
-        <div className="top-controls">
-          <button onClick={handleAddFinding}>Add Finding</button>
-          <button onClick={handleShowFindings}>Read Findings</button>
-        </div>
-        <ReactPlayer
-          ref={playerRef}
-          url={decodeURIComponent(videoUrl)}
-          playing={isPlaying}
-          controls
-          width="80%"
-          height="600px"
-          config={{ file: { attributes: { crossOrigin: 'anonymous' } } }}
-        />
+    ) : (
+        <>
+      <button className="info-icon" onClick={toggleSidebar}>
+        <FontAwesomeIcon icon={faInfoCircle} />        
+      </button>
+      {!isSidebarOpen && (
+        <button className="back-icon" onClick={() => navigate(-1)}>
+          <FontAwesomeIcon icon={faCircleArrowLeft} />
+        </button>
+      )}      
+      <Sidebar
+        isOpen={isSidebarOpen}
+        toggleSidebar={toggleSidebar}
+        encounterId={encounterId}
+        mediaId={mediaId}
+        patientId={patientDetails.patientId}
+        name={patientDetails.name}
+        surname={patientDetails.surname}
+        birthdate={patientDetails.birthdate}
+        gender={patientDetails.gender}
+      />     
+      <div className="video-section">       
+        <div className="video-player-wrapper">
+          <ReactPlayer
+            ref={playerRef}
+            url={decodeURIComponent(videoUrl)}
+            playing={isPlaying}
+            playbackRate={speed}
+            onProgress={({ playedSeconds }) => setCurrentTime(playedSeconds)}
+            onDuration={(duration) => setDuration(duration)}
+            controls
+            width="100%"
+            height="auto"
+            config={{ file: { attributes: { crossOrigin: 'anonymous' } } }}
+          />
+          <div className="overlay-button-wrapper">
+            <div title='Add Finding' className="overlay-finding-button" onClick={handleAddFinding}>
+              <FontAwesomeIcon icon={faCirclePlus} />
+            </div>
+            <div title='Final Report' className='overlay-report-button' onClick={() => setShowReportModal(true)}>
+              <FontAwesomeIcon icon={faFileWaveform} />
+            </div>
+          </div>
+          <div className="controls-toolbar">          
+            <button title={isPlaying ? "Pause" : "Play"} onClick={handlePlayPause}>
+                <FontAwesomeIcon icon={isPlaying ? faPause : faPlay} />
+            </button>          
+            <div className="speed-control">
+              <label>Speed:</label>
+              <input
+                  type="number"
+                  value={speed}
+                  min="0.05"
+                  max="2"
+                  step="0.05"
+                  onChange={(e) => {
+                      const newSpeed = parseFloat(e.target.value);
+                      // Ensure new speed is within range
+                      if (newSpeed >= 0.01 && newSpeed <= 2) {
+                          setSpeed(newSpeed);
+                      }
+                  }}
+              />
+            </div>
 
-        <div className="bottom-controls">
-          <button onClick={handlePlayPause}>{isPlaying ? 'Pause' : 'Play'}</button>
-          <button onClick={handleRewind}>Rewind 10s</button>
-          <button onClick={handleForward}>Forward 10s</button>
-          <button onClick={handleFrameBackward}>Frame Backward</button>
-          <button onClick={handleFrameForward}>Frame Forward</button>
-        </div>
-        <button onClick={() => setShowReportModal(true)}>Report</button>
+            <button title='Back 10s' onClick={handleRewind}>
+                <FontAwesomeIcon icon={faBackwardFast} />
+            </button>
+            <button title='Forward 10s' onClick={handleForward}>
+                <FontAwesomeIcon icon={faForwardFast} />
+            </button>
+            <button title='Previous Frame' onClick={handleFrameBackward}>
+                <FontAwesomeIcon icon={faStepBackward} />
+            </button>
+            <button title='Next Frame' onClick={handleFrameForward}>
+                <FontAwesomeIcon icon={faStepForward} />
+            </button>
+          </div>
+          <div className="progress-info">
+            <span>[Frame: {Math.floor(currentTime * 5)} / {Math.floor(duration * 5)}] {((currentTime / duration) * 100).toFixed(2)}% </span>
+            <span>{formatTime(currentTime)} / {formatTime(duration)}</span>
+          </div>
+        </div>             
+      </div>      
+
+      <div className="findings-preview">
+        {findings.map((finding, index) => (
+          <div
+            key={index}
+            className="finding-item"
+            onClick={() => handleFindingClick(finding)} // Open modal on click
+          >
+            <img 
+              src={finding.frameUrl} 
+              alt={`Finding at ${new Date(finding.time * 1000).toISOString().substr(11, 8)}`} 
+              className="finding-thumbnail" 
+            />
+            <p>{new Date(finding.time * 1000).toISOString().substr(11, 8)}</p>
+          </div>
+        ))}
       </div>
+
+      {showFindingModal && selectedFinding && (
+        <div className="modal">
+          <div className="modal-content">
+            <h2>Finding Details</h2>
+            <img 
+              src={selectedFinding.frameUrl} 
+              alt="Finding Frame" 
+              className="modal-finding-image" 
+            />
+            <p><strong>Timestamp:</strong> {new Date(selectedFinding.time * 1000).toISOString().substr(11, 8)}</p>
+            <p><strong>Comment:</strong> {selectedFinding.comment}</p>
+            <button onClick={goToFinding}>Go to Finding</button>
+            <button onClick={closeFindingModal}>Close</button>
+          </div>
+        </div>
+      )}
 
       <canvas ref={canvasRef} style={{ display: 'none' }} width="640" height="640"></canvas>
 
       {showCommentModal && (
         <div className="modal">
           <div className="modal-content">
-            <h2>Add Comment</h2>
-            <p>Time: {currentTime ? new Date(currentTime * 1000).toISOString().substr(11, 8) : ''}</p>
+            <h2>Add Finding</h2>
+            
+            {/* Display the captured frame */}
+            {currentFrame && (
+              <img 
+                src={currentFrame} 
+                alt="Captured Frame" 
+                className="modal-finding-image" 
+                style={{ width: '100%', height: 'auto', marginBottom: '10px', borderRadius: '8px' }}
+              />
+            )}
+
+            {/* Display the timestamp */}
+            <p><strong>Timestamp:</strong> {currentTime ? new Date(currentTime * 1000).toISOString().substr(11, 8) : ''}</p>
+            
+            {/* Text area for adding a comment */}
             <textarea
               value={comment}
               onChange={(e) => setComment(e.target.value)}
               placeholder="Write your comment here"
+              style={{
+                width: '100%',
+                height: '100px',
+                padding: '5px',
+                marginTop: '5px',
+                resize: 'none',  // Disables resizing
+                boxSizing: 'border-box' // Ensures padding doesn't affect the width
+              }}
             />
-            <button onClick={handleSaveComment}>Save</button>
-            <button onClick={() => setShowCommentModal(false)}>Cancel</button>
+
+            {/* Save and Cancel buttons */}
+            <button onClick={handleSaveComment} style={{ marginTop: '10px' }}>Save</button>
+            <button onClick={() => setShowCommentModal(false)} style={{ marginLeft: '10px', marginTop: '10px' }}>Cancel</button>
           </div>
         </div>
       )}
@@ -284,7 +501,8 @@ const VideoPlayer = () => {
                 {findings.map((finding, index) => (
                   <li key={index}>
                     <p>Time: {new Date(finding.time * 1000).toISOString().substr(11, 8)}</p>
-                    <p>Frame: <img src={finding.frameUrl} alt={`Frame at ${finding.time}`} width="90" height="90" /></p>
+                    <p>Frame:</p>
+                    <img src={finding.frameUrl} alt={`Frame at ${finding.time}`} width="90" height="90" />
                     <p>Comment: {finding.comment}</p>
                   </li>
                 ))}
@@ -293,40 +511,42 @@ const VideoPlayer = () => {
             <button onClick={() => setShowFindingsModal(false)}>Close</button>
           </div>
         </div>
-      )}
+      )}     
 
       {showReportModal && (
         <div className="modal">
-          <div className="modal-content">
-            <h2>Report</h2>
-            <div className="frames-selection">
+          <div className="report-modal-content">
+            <h2>Final Diagnostic Report</h2>            
+            <div className="report-modal-findings-preview">
               {findings.map((finding, index) => (
-                <div key={index}>
-                  <input 
-                    type="checkbox" 
-                    id={`frame-${index}`} 
-                    value={finding.frameUrl} 
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setSelectedFrames([...selectedFrames, e.target.value]);
-                      } else {
-                        setSelectedFrames(selectedFrames.filter(frame => frame !== e.target.value));
-                      }
-                    }}
+                <div
+                  key={index}
+                  className={`report-modal-finding-item ${selectedFrames.includes(finding.frameUrl) ? 'selected' : ''}`}
+                  onClick={() => {
+                    if (selectedFrames.includes(finding.frameUrl)) {
+                      setSelectedFrames(selectedFrames.filter(frame => frame !== finding.frameUrl));
+                    } else {
+                      setSelectedFrames([...selectedFrames, finding.frameUrl]);
+                    }
+                  }}
+                >
+                  <img 
+                    src={finding.frameUrl} 
+                    alt={`Finding at ${new Date(finding.time * 1000).toISOString().substr(11, 8)}`} 
+                    className="report-modal-finding-thumbnail"
                   />
-                  <label htmlFor={`frame-${index}`}>
-                    <img src={finding.frameUrl} alt={`Frame at ${finding.time}`} width="90" height="90" />
-                  </label>
+                  <p>{new Date(finding.time * 1000).toISOString().substr(11, 8)}</p>
                 </div>
               ))}
             </div>
             <textarea
+              className="report-modal-conclusion-input"
               value={conclusion}
               onChange={(e) => setConclusion(e.target.value)}
               placeholder="Write your conclusion here"
             />
-            <div className="modal-buttons">
-              <button onClick={handleFinalization}>Finalization</button>
+            <div className="report-modal-buttons">
+              <button onClick={handleFinalization}>Finalize Report</button>
               <button onClick={() => setShowReportModal(false)}>Cancel</button>
             </div>
           </div>
@@ -342,6 +562,12 @@ const VideoPlayer = () => {
           </div>
         </div>
       )}
+
+
+
+        </>
+      )}
+
     </div>
   );
 };

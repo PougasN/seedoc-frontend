@@ -1,5 +1,3 @@
-// src/App.js
-
 import React from 'react';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import Login from './components/Login';
@@ -7,7 +5,6 @@ import Patients from './components/Patients';
 import PatientDetails from './components/PatientDetails';
 import VideoPlayer from './components/VideoPlayer';
 import Layout from './components/Layout';
-//import Test from './components/TestPage';
 
 function App() {
   return (
@@ -18,7 +15,6 @@ function App() {
           <Route path="patients" element={<Patients />} />
           <Route path="patient/:patientId" element={<PatientDetails />} />
           <Route path="video/:encounterId/:mediaId" element={<VideoPlayer />} />
-          {/* <Route path="tests" element={<Test />} /> */}
         </Route>
       </Routes>
     </Router>

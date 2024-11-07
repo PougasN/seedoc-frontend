@@ -1,5 +1,5 @@
 import React from 'react';
-import './Modal.css'; // Add some basic styling for the modal
+import './Modal.css';
 
 const Modal = ({ show, handleClose, handleSave, newPatient, setNewPatient, newEncounter, setNewEncounter }) => {
   if (!show) {

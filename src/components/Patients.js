@@ -14,9 +14,11 @@ const Patients = () => {
   const [searchText, setSearchText] = useState('');
   const [showModal, setShowModal] = useState(false);
   const navigate = useNavigate();
+  const [currentPage, setCurrentPage] = useState(1);
+  const patientsPerPage = 10; // Set the number of patients per page
 
   useEffect(() => {
-    fetch('http://localhost:9090/patients')
+    fetch(`${process.env.REACT_APP_API_URL}/patients`)
       .then(response => response.json())
       .then(data => {
         if (data.entry) {
@@ -26,6 +28,7 @@ const Patients = () => {
               fullName: `${name.given.join(' ')} ${name.family}`,
               familyName: name.family,
               birthDate: entry.resource.birthDate,
+              gender: entry.resource.gender,
               id: entry.resource.id
             };
           });
@@ -53,7 +56,7 @@ const Patients = () => {
       birthDate: newPatient.birthDate
     };
 
-    fetch('http://localhost:9090/patient', {
+    fetch(`${process.env.REACT_APP_API_URL}/patient`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/fhir+json',
@@ -84,12 +87,27 @@ const Patients = () => {
     patient.familyName?.toLowerCase().startsWith(searchText.toLowerCase())
   );
 
+  const indexOfLastPatient = currentPage * patientsPerPage;
+  const indexOfFirstPatient = indexOfLastPatient - patientsPerPage;
+  const currentPatients = filteredPatients.slice(indexOfFirstPatient, indexOfLastPatient);
+  const totalPages = Math.ceil(filteredPatients.length / patientsPerPage);
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) setCurrentPage(currentPage + 1);
+  };
+  
+  const handlePreviousPage = () => {
+    if (currentPage > 1) setCurrentPage(currentPage - 1);
+  };
+  
+
   return (
     <div className="patients-container">
       <h1>Patients</h1>
       <button onClick={() => setShowModal(true)}>Add Patient</button>
       <input
         type="text"
+        className='search-input'
         placeholder="Search by surname"
         value={searchText}
         onChange={(e) => setSearchText(e.target.value)}
@@ -99,6 +117,7 @@ const Patients = () => {
           <tr>
             <th>#</th>
             <th>Full Name</th>
+            <th>Gender</th>
             <th>Birth Date</th>
           </tr>
         </thead>
@@ -108,16 +127,28 @@ const Patients = () => {
               <td colSpan="3">No Patients found.</td>
             </tr>
           ) : (
-            filteredPatients.map((patient, index) => (
+            currentPatients.map((patient, index) => (
               <tr key={index} onClick={() => handlePatientClick(patient.id)}>
                 <td>{index + 1}</td>
                 <td>{patient.fullName}</td>
+                <td>{patient.gender}</td>
                 <td>{patient.birthDate}</td>
               </tr>
             ))
           )}
         </tbody>
       </table>
+      {totalPages > 1 && (
+      <div className="pagination">
+        <button onClick={handlePreviousPage} disabled={currentPage === 1}>
+          Previous
+        </button>
+        <span>Page {currentPage} of {totalPages}</span>
+        <button onClick={handleNextPage} disabled={currentPage === totalPages}>
+          Next
+        </button>
+      </div>
+      )}
       <Modal
         show={showModal}
         handleClose={() => setShowModal(false)}

@@ -18,7 +18,7 @@ const PatientDetails = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetch(`http://localhost:9090/patient/${patientId}`)
+    fetch(`${process.env.REACT_APP_API_URL}/patient/${patientId}`)
       .then(response => response.json())
       .then(data => {
         const name = data.name[0];
@@ -26,7 +26,7 @@ const PatientDetails = () => {
       })
       .catch(error => console.error('Error fetching patient:', error));
 
-    fetch(`http://localhost:9090/patient/${patientId}/encounters`)
+    fetch(`${process.env.REACT_APP_API_URL}/patient/${patientId}/encounters`)
       .then(response => response.json())
       .then(data => {
         if (data.entry) {
@@ -66,11 +66,10 @@ const PatientDetails = () => {
         text: newEncounter.description
       }],
       status: newEncounter.status
-    };
-  
-    // Optimistically update the UI
+    };  
+    
     const optimisticEnc = {
-      id: `optimistic-${Date.now()}`, // Use a unique temporary ID
+      id: `optimistic-${Date.now()}`,
       description: newEncounter.description,
       status: newEncounter.status,
       date: new Date(newEncounter.date).toISOString(),
@@ -81,7 +80,7 @@ const PatientDetails = () => {
   
     setEncounters(prevEncounters => [...prevEncounters, optimisticEnc]);
   
-    fetch('http://localhost:9090/encounter', {
+    fetch(`${process.env.REACT_APP_API_URL}/encounter`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/fhir+json',
@@ -118,7 +117,46 @@ const PatientDetails = () => {
     setShowVideoModal(true);
   };
 
-  const handleUpload = async (file) => {
+  // const handleUpload = async (file) => {
+  //   if (!file) {
+  //     alert('Please select a file to upload');
+  //     return;
+  //   }
+  
+  //   const formData = new FormData();
+  //   formData.append('file', file);
+  //   const encounterId = encounters[selectedEncounterIndex].id; // Define encounterId
+  
+  //   try {
+  //     const response = await fetch(`http://localhost:9090/upload?patientId=${patientId}&encounterId=${encounterId}`, {
+  //       method: 'POST',
+  //       body: formData,
+  //     });
+  
+  //     if (!response.ok) {
+  //       throw new Error('Error uploading file');
+  //     }
+
+  //     const data = await response.json();
+  //     console.log('media created with ID = ', data.id);
+  
+  //     const videoUrl = `http://localhost:9000/videos-bucket/${file.name}`;
+  
+  //     // Update encounter with video URL
+  //     setEncounters(encounters.map((enc, i) => i === selectedEncounterIndex ? {
+  //       ...enc,
+  //       status: 'in-progress',
+  //       videoUploaded: true,
+  //       readEnabled: true,
+  //       videoUrl: videoUrl // Set the correct video URL
+  //     } : enc));
+  //     setShowVideoModal(false);
+  //   } catch (err) {
+  //     console.error('Error uploading video:', err);
+  //   }
+  // };
+
+  const handleUpload = async (file, setUploadProgress) => {
     if (!file) {
       alert('Please select a file to upload');
       return;
@@ -129,38 +167,63 @@ const PatientDetails = () => {
     const encounterId = encounters[selectedEncounterIndex].id; // Define encounterId
   
     try {
-      const response = await fetch(`http://localhost:9090/upload?patientId=${patientId}&encounterId=${encounterId}`, {
-        method: 'POST',
-        body: formData,
-      });
+      // Create a new XMLHttpRequest
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${process.env.REACT_APP_API_URL}/upload?patientId=${patientId}&encounterId=${encounterId}`, true);
   
-      if (!response.ok) {
-        throw new Error('Error uploading file');
-      }
-
-      const data = await response.json();
-      console.log('media created with ID = ', data.id);
+      // Set up the progress event listener
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          const percentCompleted = Math.round((event.loaded * 100) / event.total);
+          setUploadProgress(percentCompleted);
+        }
+      };
   
-      const videoUrl = `http://localhost:9000/videos-bucket/${file.name}`;
+      // Set up the load event listener
+      xhr.onload = () => {
+        if (xhr.status === 200) {
+          const data = JSON.parse(xhr.responseText);
+          console.log('media created with ID = ', data.id);
   
-      // Update encounter with video URL
-      setEncounters(encounters.map((enc, i) => i === selectedEncounterIndex ? {
-        ...enc,
-        status: 'in-progress',
-        videoUploaded: true,
-        readEnabled: true,
-        videoUrl: videoUrl // Set the correct video URL
-      } : enc));
-      setShowVideoModal(false);
+          const videoUrl = `${process.env.REACT_APP_API_URL}/videos-bucket/${file.name}`;
+          
+          // Update encounter with video URL
+          setEncounters(encounters.map((enc, i) => i === selectedEncounterIndex ? {
+            ...enc,
+            status: 'in-progress',
+            videoUploaded: true,
+            readEnabled: true,
+            videoUrl: videoUrl // Set the correct video URL
+          } : enc));
+          setShowVideoModal(false);
+          setUploadProgress(0); // Reset the progress bar after upload
+        } else {
+          alert('Error uploading file');
+          setUploadProgress(0);
+        }
+      };
+  
+      // Set up the error event listener
+      xhr.onerror = () => {
+        console.error('Error uploading video');
+        alert('Error uploading video');
+        setUploadProgress(0);
+      };
+  
+      // Send the form data
+      xhr.send(formData);
     } catch (err) {
       console.error('Error uploading video:', err);
+      alert('Error uploading video');
+      setUploadProgress(0);
     }
   };
+  
   
 
   const handleReadClick = async (encounter) => {
     try {
-      const response = await fetch(`http://localhost:9090/encounter/${encounter.id}`);
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/encounter/${encounter.id}`);
       const updatedEncounter = await response.json();
   
       if (!updatedEncounter.extension) {
@@ -198,7 +261,7 @@ const PatientDetails = () => {
 
   const generatePDF = async (encounter) => {
     try {
-      const response = await fetch(`http://localhost:9090/diagnostic-report?encounterId=${encounter.id}`);
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/diagnostic-report?encounterId=${encounter.id}`);
       
       if (response.status === 404) {
         // Generate PDF without conclusion and images
@@ -256,10 +319,12 @@ const PatientDetails = () => {
 
   return (
     <div>
-      <button className="danger" onClick={() => navigate('/patients')}>Back</button>
+      
       <h1>{patient + ' ID(' + patientId + ')'}</h1>
-      <button className="secondary" onClick={() => setShowModal(true)}>Add Encounter</button>
+      
+      <button onClick={() => setShowModal(true)}>Add Encounter</button>
       {loading && <p>Loading...</p>}
+      <button className="danger" onClick={() => navigate('/patients')}>Back</button>
       <table>
         <thead>
           <tr>

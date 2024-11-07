@@ -1,4 +1,3 @@
-// EncounterContext.js
 import React, { createContext, useState } from 'react';
 
 const EncounterContext = createContext();
