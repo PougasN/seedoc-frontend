@@ -1,7 +1,9 @@
 import React from 'react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faFileWaveform } from '@fortawesome/free-solid-svg-icons';
 import './Sidebar.css';
 
-const Sidebar = ({ isOpen, toggleSidebar, encounterId, mediaId, patientId, name, surname, birthdate, gender }) => {
+const Sidebar = ({ isOpen, toggleSidebar, encounterId, mediaId, patientId, name, surname, birthdate, gender, encounterStatus, showReportModalHandler }) => {
   return (
     <div className={`sidebar ${isOpen ? 'open' : ''}`}>
         <button className="close-btn" onClick={toggleSidebar}>✖</button>
@@ -30,6 +32,20 @@ const Sidebar = ({ isOpen, toggleSidebar, encounterId, mediaId, patientId, name,
             <p className="label">Gender:</p>
             <p className="value">{gender}</p>
         </div>
+
+        {encounterStatus !== 'finished' ? (
+        <div title="Final Report" className="overlay-report-button" onClick={showReportModalHandler}>
+          <span className="report-text">Report</span>
+          <FontAwesomeIcon icon={faFileWaveform} />
+        </div>
+      ) : (
+        <div title="Final Report" className="overlay-report-button faded">
+          <span className="report-text">Report</span>
+          <FontAwesomeIcon icon={faFileWaveform} />
+        </div>
+      )}
+
+
     </div>
   );
 };

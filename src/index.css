@@ -23,7 +23,7 @@ code {
 button {
   padding: 10px 20px;
   margin: 5px;
-  background-color: #4CAF50; /* Green background */
+  background-color: rgb(55, 133, 255);
   color: white; /* White text */
   border: none; /* Remove default border */
   border-radius: 5px; /* Rounded corners */
@@ -32,9 +32,10 @@ button {
   transition: background-color 0.3s ease, box-shadow 0.3s ease; /* Smooth transition for hover effects */
 }
 
+
 /* Hover effect */
 button:hover {
-  background-color: #45a049; /* Slightly darker green */
+  background-color: rgb(55, 103, 255); /* Green background */
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Add shadow */
 }
 
