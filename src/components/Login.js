@@ -26,9 +26,18 @@ const Login = () => {
         const data = await response.json();
         localStorage.setItem('authCredentials', `Basic ${credentials}`);
         localStorage.setItem('userRole', data.role);
-        localStorage.setItem('userName', username);
+        localStorage.setItem('userName', username);      
+        localStorage.setItem('practitionerId', data.practitionerId);
+        localStorage.setItem('id', data.id);
 
-        navigate('/patients');
+        console.log('here we are as : ' , username, 'with id ', data.id , 'and practitionerId ' , data.practitionerId);
+        // Redirect based on role
+        if (data.role === 'ROLE_ADMIN') {
+          navigate('/patients');
+        } else if (data.role === 'ROLE_DOCTOR' || data.role === 'ROLE_NURSE') {
+          navigate('/doctor-encounters');
+        }
+
       } else if (response.status === 401) {
         alert('Invalid username or password');
       } else {

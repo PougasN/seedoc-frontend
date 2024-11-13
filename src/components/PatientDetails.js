@@ -120,6 +120,9 @@ const PatientDetails = () => {
   
     fetchPatientDetails();
   }, [patientId]);
+
+  
+  
   
 
   const handleDoctorChange = (encounterId, practitionerId) => {
@@ -477,7 +480,7 @@ const PatientDetails = () => {
 
   return (
     <div>      
-      <h1>{patient + ' ID(' + patientId + ')'}</h1>      
+      <h1>{patient + ' ID(' + patientId + ')'}</h1>
       <button onClick={() => setShowModal(true)}>Add Encounter</button>
       {loading && <p>Loading...</p>}
       <button className="danger" onClick={() => navigate('/patients')}>Back</button>
@@ -534,7 +537,7 @@ const PatientDetails = () => {
                   </td>
                   <td>
                     {encounter.videoUploaded ? (
-                      <span>A video has been uploaded</span>
+                      <span>A video has been uploaded ✅</span>
                     ) : (
                       <button onClick={() => handleUploadClick(index)}>
                         Upload Video

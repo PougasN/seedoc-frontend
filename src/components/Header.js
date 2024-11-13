@@ -16,9 +16,9 @@ const Header = () => {
         case 'ROLE_ADMIN':
           return 'Admin';
         case 'ROLE_DOCTOR':
-          return 'Doctor';
+          return 'Dr.';
         case 'ROLE_NURSE':
-          return 'Nurse';
+          return 'Nr.';
         default:
           return 'User'; // Default if role does not match
       }

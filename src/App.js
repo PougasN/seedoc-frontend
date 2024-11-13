@@ -6,6 +6,7 @@ import PatientDetails from './components/PatientDetails';
 import VideoPlayer from './components/VideoPlayer';
 import Layout from './components/Layout';
 import UserManagement from './components/UserManagement';
+import DoctorEncounters from './components/DoctorEncounters';
 
 function App() {
   return (
@@ -18,6 +19,7 @@ function App() {
           <Route path="patient/:patientId" element={<PatientDetails />} />
           <Route path="video/:encounterId/:mediaId" element={<VideoPlayer />} />
           <Route path="user-management" element={<UserManagement />} />
+          <Route path="/doctor-encounters" element={<DoctorEncounters />} />
         </Route>
       </Routes>
     </Router>

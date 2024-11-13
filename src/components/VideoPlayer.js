@@ -37,6 +37,7 @@ const VideoPlayer = () => {
   const [selectedFinding, setSelectedFinding] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const authCredentials = localStorage.getItem('authCredentials');
+  const userRole = localStorage.getItem('userRole');
   const predefinedComments = [
     "Fresh Blood",
     "Vascular Lesion",
@@ -50,127 +51,8 @@ const VideoPlayer = () => {
   const [encounterStatus, setEncounterStatus] = useState(null);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const videoContainerRef = useRef(null);
-  const [currentFindingIndex, setCurrentFindingIndex] = useState(0);
-
-  
-
-
-  // useEffect(() => {
-  //   const fetchVideo = async () => {
-  //     try {
-  //       const response = await fetch(`${process.env.REACT_APP_API_URL}/video/${encounterId}`, {
-  //         headers: {
-  //           'Authorization': authCredentials, // Use stored credentials
-  //         },
-  //       });
-  //       if (response.ok) {
-  //         const blob = await response.blob();
-  //         const videoUrl = URL.createObjectURL(blob);
-  //         setVideoUrl(videoUrl);
-  //       } else {
-  //         console.error('Error fetching video:', response.statusText);
-  //       }
-  //     } catch (err) {
-  //       console.error('Error fetching video:', err);
-  //     }
-  //   };
-  
-  //   const fetchMedia = async () => {
-  //     try {
-  //       const response = await fetch(`${process.env.REACT_APP_API_URL}/media/${mediaId}`, {
-  //         headers: {
-  //           'Content-Type': 'application/json',
-  //           'Authorization': authCredentials,
-  //         },
-  //       });
-  //       const data = await response.json();
-  //       if (data && data.content && data.content.url) {
-  //         fetchFindings();
-  //       }
-  //     } catch (err) {
-  //       console.error('Error fetching media:', err);
-  //     }
-  //   };
-  
-  //   const fetchEncounterAndPatientDetails = async () => {
-  //     try {
-  //       const encounterResponse = await fetch(`${process.env.REACT_APP_API_URL}/encounter/${encounterId}`, {
-  //         headers: {
-  //           'Content-Type': 'application/json',
-  //           'Authorization': authCredentials,
-  //         },
-  //       });
-  //       const encounterData = await encounterResponse.json();
-  //       setEncounterStatus(encounterData.status); // Store encounter status
-  
-  //       const patientId = encounterData.subject.reference.split('/')[1];
-  
-  //       const patientResponse = await fetch(`${process.env.REACT_APP_API_URL}/patient/${patientId}`, {
-  //         headers: {
-  //           'Content-Type': 'application/json',
-  //           'Authorization': authCredentials,
-  //         },
-  //       });
-  //       const patientData = await patientResponse.json();
-  //       setPatientDetails({
-  //         patientId: patientData.id,
-  //         name: patientData.name[0].given[0],
-  //         surname: patientData.name[0].family,
-  //         birthdate: patientData.birthDate,
-  //         gender: patientData.gender,
-  //       });
-  //     } catch (error) {
-  //       console.error('Error fetching patient details:', error);
-  //     }
-  //   };  
-  //   if (encounterId) {
-  //     fetchEncounterAndPatientDetails();
-  //     fetchVideo();
-  //   }
-  //   if (mediaId) {
-  //     fetchMedia();
-  //     fetchFindings();
-  //   }
-  
-  //   setTimeout(() => {
-  //     setIsLoading(false);
-  //   }, 2000);
-
-  //   const handleFullScreenChange = () => {
-  //     setIsFullScreen(!!document.fullscreenElement);
-  //   };
-  
-  //   document.addEventListener('fullscreenchange', handleFullScreenChange);
-  //   return () => {
-  //     document.removeEventListener('fullscreenchange', handleFullScreenChange);
-  //   };
-
-  //   if (isFullScreen) {
-  //     // Add scroll listener only in custom full-screen mode
-  //     window.addEventListener('wheel', handleScroll);
-  //   } else {
-  //     // Remove scroll listener when exiting full-screen mode
-  //     window.removeEventListener('wheel', handleScroll);
-  //   }
-
-  //   return () => {
-  //     // Clean up the event listener when component unmounts or isFullScreen changes
-  //     window.removeEventListener('wheel', handleScroll);
-  //   };
-
-  // }, [mediaId, encounterId, isFullScreen]);  
-
-
-
-  // const handleScroll = (event) => {
-  //   // Adjust the scroll sensitivity (how much time to skip per scroll)
-  //   const scrollSensitivity = 5; // seconds per scroll
-  //   if (playerRef.current) {
-  //     const currentTime = playerRef.current.getCurrentTime();
-  //     const newTime = event.deltaY < 0 ? currentTime - scrollSensitivity : currentTime + scrollSensitivity;
-  //     playerRef.current.seekTo(newTime, 'seconds');
-  //   }
-  // };
+  const [currentFindingIndex, setCurrentFindingIndex] = useState(0);  
+  const [isPreRead, setIsPreRead] = useState('');
 
   useEffect(() => {
     const fetchVideo = async () => {
@@ -219,7 +101,14 @@ const VideoPlayer = () => {
         });
         const encounterData = await encounterResponse.json();
         setEncounterStatus(encounterData.status); // Store encounter status
-  
+        
+        //HERE ADDON
+        const preReadExtension = encounterData.extension?.find(
+          (ext) => ext.url === 'http://example.com/fhir/StructureDefinition/nursePreReadStatus'
+        );
+        setIsPreRead(preReadExtension?.valueBoolean || false); // Set preRead status based on extension
+        console.log('lets see if preRead is = ' , isPreRead);
+
         const patientId = encounterData.subject.reference.split('/')[1];
   
         const patientResponse = await fetch(`${process.env.REACT_APP_API_URL}/patient/${patientId}`, {
@@ -279,9 +168,6 @@ const VideoPlayer = () => {
       window.removeEventListener('wheel', handleScroll);
     };
   }, [mediaId, encounterId, isFullScreen]);
-  
-
-
 
   const fetchFindings = async () => {
     if (!mediaId) return;
@@ -305,9 +191,7 @@ const VideoPlayer = () => {
     } catch (err) {
       console.error('Error fetching findings:', err);
     }
-  };
-  
-  
+  };  
 
   const handlePlayPause = () => {
     setIsPlaying(!isPlaying);
@@ -374,8 +258,6 @@ const VideoPlayer = () => {
       }
     }
   };
-  
-  
 
   const handleSaveComment = async () => {
     const newFinding = {
@@ -616,23 +498,11 @@ const VideoPlayer = () => {
         birthdate={patientDetails.birthdate}
         gender={patientDetails.gender}
         encounterStatus={encounterStatus}  // Pass encounterStatus to Sidebar
+        role={userRole}  // Pass user role to Sidebar
         showReportModalHandler={() => setShowReportModal(true)}
       />     
       <div className={`video-section ${isFullScreen ? 'full-screen' : ''}`}>       
         <div className={`video-player-wrapper ${isFullScreen ? 'full-screen' : ''}`} ref={videoContainerRef}>
-          {/* <ReactPlayer
-            ref={playerRef}
-            url={decodeURIComponent(videoUrl)}
-            playing={isPlaying}
-            playbackRate={speed}
-            onProgress={({ playedSeconds }) => setCurrentTime(playedSeconds)}
-            onDuration={(duration) => setDuration(duration)}
-            controls
-            width="100%"
-            height="auto"
-            config={{ file: { attributes: { crossOrigin: 'anonymous' } } }}
-          /> */}
-
           <ReactPlayer
             ref={playerRef}
             url={decodeURIComponent(videoUrl)}
@@ -651,60 +521,18 @@ const VideoPlayer = () => {
             }}
             config={{ file: { attributes: { crossOrigin: 'anonymous' } } }}
           />
-
-
-          <div className="overlay-button-wrapper">
-            <div title='Add Finding' className="overlay-finding-button" onClick={handleAddFinding}>
-              <FontAwesomeIcon icon={faCirclePlus} />
-            </div>            
+          <div className="overlay-button-wrapper">            
+            {encounterStatus !== 'finished' && !isPreRead ? (
+              <div title="Add Finding" className="overlay-finding-button" onClick={handleAddFinding}>
+                <FontAwesomeIcon icon={faCirclePlus} />
+              </div>
+            ) : (
+              <div title="Add Finding" className="overlay-finding-button faded">
+                <FontAwesomeIcon icon={faCirclePlus} />
+              </div>
+            )}
           </div>
-          <div className={`controls-toolbar ${isFullScreen ? 'full-screen-toolbar' : ''}`}>  
-            {/* <div className="controls-left">        
-              <button title={isPlaying ? "Pause" : "Play"} onClick={handlePlayPause}>
-                  <FontAwesomeIcon icon={isPlaying ? faPause : faPlay} />
-              </button>          
-              <div className="speed-control">
-                <label>Speed:</label>
-                <input
-                    type="number"
-                    value={speed}
-                    min="0.05"
-                    max="2"
-                    step="0.05"
-                    onChange={(e) => {
-                        const newSpeed = parseFloat(e.target.value);
-                        // Ensure new speed is within range
-                        if (newSpeed >= 0.01 && newSpeed <= 2) {
-                            setSpeed(newSpeed);
-                        }
-                    }}
-                />
-              </div>            
-              <button title='Back 10s' onClick={handleRewind}>
-                  <FontAwesomeIcon icon={faBackwardFast} />
-              </button>
-              <button title='Forward 10s' onClick={handleForward}>
-                  <FontAwesomeIcon icon={faForwardFast} />
-              </button>            
-              <button title='Previous Frame' onClick={handleFrameBackward}>
-                  <FontAwesomeIcon icon={faStepBackward} />
-              </button>
-              <button title='Next Frame' onClick={handleFrameForward}>
-                  <FontAwesomeIcon icon={faStepForward} />
-              </button> 
-            </div>
-            <div className="controls-right">             
-              <button title="Previous Finding" onClick={goToPreviousFinding}>
-                <FontAwesomeIcon icon={faArrowLeft} />
-              </button>              
-              <button title="Next Finding" onClick={goToNextFinding}>
-                <FontAwesomeIcon icon={faArrowRight} />
-              </button>
-              <button title="Toggle Fullscreen" onClick={handleFullScreenToggle}>
-                <FontAwesomeIcon icon={isFullScreen ? faCompress : faExpand} />
-              </button>
-            </div> */}
-
+          <div className={`controls-toolbar ${isFullScreen ? 'full-screen-toolbar' : ''}`}>
             <div className="controls-left">
               <button
                 data-tooltip={isPlaying ? "Pause" : "Play"}
@@ -712,7 +540,6 @@ const VideoPlayer = () => {
               >
                 <FontAwesomeIcon icon={isPlaying ? faPause : faPlay} />
               </button>
-
               <div className="speed-control">
                 <label>Speed:</label>
                 <input
@@ -729,7 +556,6 @@ const VideoPlayer = () => {
                   }}
                 />
               </div>
-
               <button data-tooltip="Back 10s" onClick={handleRewind}>
                 <FontAwesomeIcon icon={faBackwardFast} />
               </button>
@@ -743,7 +569,6 @@ const VideoPlayer = () => {
                 <FontAwesomeIcon icon={faStepForward} />
               </button>
             </div>
-
             <div className="controls-right">
               <button data-tooltip="Previous Finding" onClick={goToPreviousFinding}>
                 <FontAwesomeIcon icon={faArrowLeft} />
@@ -758,18 +583,13 @@ const VideoPlayer = () => {
                 <FontAwesomeIcon icon={isFullScreen ? faCompress : faExpand} />
               </button>
             </div>
-
-
-
-
           </div>
           <div className="progress-info">
             <span>[Frame: {Math.floor(currentTime * 5)} / {Math.floor(duration * 5)}] {((currentTime / duration) * 100).toFixed(2)}%</span>
             <span>{formatTime(currentTime)} / {formatTime(duration)}</span>
           </div>
         </div>             
-      </div>      
-
+      </div>
       <div className="findings-preview">
         {findings.map((finding, index) => (
           <div
@@ -786,7 +606,6 @@ const VideoPlayer = () => {
           </div>
         ))}
       </div>
-
       {showFindingModal && selectedFinding && (
         <div className="modal">
           <div className="modal-content">
@@ -803,14 +622,11 @@ const VideoPlayer = () => {
           </div>
         </div>
       )}
-
       <canvas ref={canvasRef} style={{ display: 'none' }} width="640" height="640"></canvas>
-
       {showCommentModal && (
       <div className="modal">
         <div className="modal-content">
-          <h2>Add Finding</h2>
-          
+          <h2>Add Finding</h2>          
           {currentFrame && (
             <img 
               src={currentFrame} 
@@ -839,7 +655,6 @@ const VideoPlayer = () => {
         </div>
       </div>
       )}
-
       {showConfirmationModal && (
         <div className="modal">
           <div className="modal-content">
@@ -851,8 +666,6 @@ const VideoPlayer = () => {
           </div>
         </div>
       )}
-
-
       {showFindingsModal && (
         <div className="modal">
           <div className="modal-content">
@@ -874,8 +687,7 @@ const VideoPlayer = () => {
             <button onClick={() => setShowFindingsModal(false)}>Close</button>
           </div>
         </div>
-      )}     
-
+      )}
       {showReportModal && (
         <div className="modal">
           <div className="report-modal-content">
@@ -908,8 +720,6 @@ const VideoPlayer = () => {
               onChange={(e) => setConclusion(e.target.value)}
               placeholder="Write your conclusion here"
             />
-
-            {/* Display error message if validation fails */}
             {reportError && (
               <p className="report-error-message">{reportError}</p>
             )}
@@ -921,8 +731,6 @@ const VideoPlayer = () => {
           </div>
         </div>
       )}
-
-      {/* Confirmation Modal */}
       {showConfirmationModal && (
         <div className="modal">
           <div className="modal-content">
@@ -934,8 +742,6 @@ const VideoPlayer = () => {
           </div>
         </div>
       )}
-
-
       {error && (
         <div className="modal">
           <div className="modal-content">
@@ -945,12 +751,8 @@ const VideoPlayer = () => {
           </div>
         </div>
       )}
-
-
-
-        </>
+      </>
       )}
-
     </div>
   );
 };
