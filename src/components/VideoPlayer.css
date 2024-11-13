@@ -455,3 +455,42 @@ video::-webkit-media-controls-panel {
   cursor: pointer;
   font-size: 18px;
 } */
+
+.overlay-finding-button.faded {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* Common styles for buttons */
+.controls-left button,
+.controls-right button {
+  position: relative;
+  cursor: pointer;
+}
+
+/* Tooltip default state */
+.controls-left button::after,
+.controls-right button::after {
+  content: '';
+  position: absolute;
+  bottom: 120%; /* Adjust as needed */
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: rgba(0, 0, 0, 0.75);
+  color: #fff;
+  padding: 5px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  font-size: 14px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+  z-index: 10;
+}
+
+/* Tooltip visible on hover */
+.controls-left button:hover::after,
+.controls-right button:hover::after {
+  content: attr(data-tooltip);
+  opacity: 1;
+}

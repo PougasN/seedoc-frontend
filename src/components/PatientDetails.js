@@ -4,6 +4,9 @@ import Modal from './Modal';
 import VideoUploadModal from './VideoUploadModal';
 import { jsPDF } from 'jspdf';
 import pdfIcon from '../assets/pdf.png';
+import AssignModal from './AssignModal';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faUserMd, faUserNurse, faCheckCircle, faExclamationCircle, faTimesCircle } from '@fortawesome/free-solid-svg-icons';
 import './PatientDetails.css';
 
 const PatientDetails = () => {
@@ -17,139 +20,17 @@ const PatientDetails = () => {
   const [selectedEncounterIndex, setSelectedEncounterIndex] = useState(null);
   const authCredentials = localStorage.getItem('authCredentials');
   const navigate = useNavigate();
-
-  // useEffect(() => {
-  //   fetch(`${process.env.REACT_APP_API_URL}/patient/${patientId}`)
-  //     .then(response => response.json())
-  //     .then(data => {
-  //       const name = data.name[0];
-  //       setPatient(`${name.given.join(' ')} ${name.family}`);
-  //     })
-  //     .catch(error => console.error('Error fetching patient:', error));
-
-  //   fetch(`${process.env.REACT_APP_API_URL}/patient/${patientId}/encounters`)
-  //     .then(response => response.json())
-  //     .then(data => {
-  //       if (data.entry) {
-  //         const encounterList = data.entry.map(entry => {
-  //           const resource = entry.resource;
-  //           const id = resource.id;
-  //           const description = resource.reasonCode && resource.reasonCode[0] ? resource.reasonCode[0].text : 'No Description';
-  //           const status = resource.status || 'No Status';
-  //           const date = resource.period && resource.period.start ? resource.period.start : 'No Date';
-
-  //           // Check for videoUploaded extension
-  //           const videoUploadedExtension = resource.extension && resource.extension.find(ext => ext.url === 'http://example.com/fhir/StructureDefinition/videoUploaded');
-  //           const videoUploaded = videoUploadedExtension ? videoUploadedExtension.valueBoolean : false;
-
-  //           return { id, description, status, date, videoUploaded, readEnabled: videoUploaded, dReport: false };
-  //         });
-  //         encounterList.sort((a, b) => new Date(a.date) - new Date(b.date));
-  //         setEncounters(encounterList);
-  //       } else {
-  //         setEncounters([]); // No encounters
-  //       }
-  //     });
-  // }, [patientId]);
-
-  // useEffect(() => {
-  //   const fetchPatientDetails = async () => {  
-  //     try {
-  //       // Fetch patient details
-  //       const patientResponse = await fetch(`${process.env.REACT_APP_API_URL}/patient/${patientId}`, {
-  //         headers: {
-  //           'Content-Type': 'application/json',
-  //           'Authorization': authCredentials, // Use stored credentials
-  //         },
-  //       });
+  const [doctors, setDoctors] = useState([]);
+  const [nurses, setNurses] = useState([]);
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [selectedEncounterId, setSelectedEncounterId] = useState(null);
+  const [selectedDoctor, setSelectedDoctor] = useState('');
+  const [selectedNurse, setSelectedNurse] = useState('');   
+  const [assignedStaff, setAssignedStaff] = useState({ doctorId: null, nurseId: null });
   
-  //       if (patientResponse.ok) {
-  //         const patientData = await patientResponse.json();
-  //         const name = patientData.name[0];
-  //         setPatient(`${name.given.join(' ')} ${name.family}`);
-  //       } else if (patientResponse.status === 401) {
-  //         alert('Unauthorized access. Please log in again.');
-  //         navigate('/login');
-  //         return;
-  //       } else {
-  //         console.error(`Error fetching patient: ${patientResponse.status}`);
-  //       }
-  
-  //       // Fetch encounters
-  //       const encountersResponse = await fetch(`${process.env.REACT_APP_API_URL}/patient/${patientId}/encounters`, {
-  //         headers: {
-  //           'Content-Type': 'application/json',
-  //           'Authorization': authCredentials, // Use stored credentials
-  //         },
-  //       });
-  
-  //       if (encountersResponse.ok) {
-  //         const encountersData = await encountersResponse.json();
-  //         if (encountersData.entry) {
-  //           // Map encounters and fetch DiagnosticReport status for each encounter
-  //           const encounterList = await Promise.all(encountersData.entry.map(async entry => {
-  //             const resource = entry.resource;
-  //             const id = resource.id;
-  //             const description = resource.reasonCode && resource.reasonCode[0] ? resource.reasonCode[0].text : 'No Description';
-  //             const status = resource.status || 'No Status';
-  //             const date = resource.period && resource.period.start ? resource.period.start : 'No Date';
-  
-  //             // Check for videoUploaded extension
-  //             const videoUploadedExtension = resource.extension && resource.extension.find(ext => ext.url === 'http://example.com/fhir/StructureDefinition/videoUploaded');
-  //             const videoUploaded = videoUploadedExtension ? videoUploadedExtension.valueBoolean : false;
-  
-  //             // Fetch DiagnosticReport status for the encounter
-  //             let diagnosticReportStatus = 'registered'; // Default to 'registered'
-  //             try {
-  //               const diagnosticReportResponse = await fetch(`${process.env.REACT_APP_API_URL}/diagnostic-report/status/${id}`, {
-  //                 headers: {
-  //                   'Authorization': authCredentials,
-  //                 },
-  //               });
-  
-  //               if (diagnosticReportResponse.ok) {
-  //                 const reportData = await diagnosticReportResponse.json();
-  //                 diagnosticReportStatus = reportData.status || 'registered';
-  //               }
-  //             } catch (error) {
-  //               console.error(`Error fetching diagnostic report status for encounter ${id}:`, error);
-  //             }
-  
-  //             return { 
-  //               id, 
-  //               description, 
-  //               status, 
-  //               date, 
-  //               videoUploaded, 
-  //               readEnabled: videoUploaded, 
-  //               dReport: diagnosticReportStatus 
-  //             };
-  //           }));
-  
-  //           encounterList.sort((a, b) => new Date(a.date) - new Date(b.date));
-  //           setEncounters(encounterList);
-  //         } else {
-  //           setEncounters([]); // No encounters
-  //         }
-  //       } else if (encountersResponse.status === 401) {
-  //         alert('Unauthorized access. Please log in again.');
-  //         navigate('/login');
-  //       } else {
-  //         console.error(`Error fetching encounters: ${encountersResponse.status}`);
-  //       }
-  
-  //     } catch (error) {
-  //       console.error('Error fetching patient or encounters:', error);
-  //     }
-  //   };
-  
-  //   fetchPatientDetails();
-  // }, [patientId]);
-
   useEffect(() => {
     const fetchPatientDetails = async () => {  
       try {
-        // Fetch patient details
         const patientResponse = await fetch(`${process.env.REACT_APP_API_URL}/patient/${patientId}`, {
           headers: {
             'Content-Type': 'application/json',
@@ -169,7 +50,6 @@ const PatientDetails = () => {
           console.error(`Error fetching patient: ${patientResponse.status}`);
         }
   
-        // Fetch encounters
         const encountersResponse = await fetch(`${process.env.REACT_APP_API_URL}/patient/${patientId}/encounters`, {
           headers: {
             'Content-Type': 'application/json',
@@ -187,25 +67,27 @@ const PatientDetails = () => {
               const status = resource.status || 'No Status';
               const date = resource.period && resource.period.start ? resource.period.start : 'No Date';
   
-              // Check for videoUploaded extension
               const videoUploadedExtension = resource.extension && resource.extension.find(ext => ext.url === 'http://example.com/fhir/StructureDefinition/videoUploaded');
               const videoUploaded = videoUploadedExtension ? videoUploadedExtension.valueBoolean : false;
   
-              // Set readEnabled based on whether a video was uploaded
+              // Check for assigned participants
+              const isAssigned = resource.participant && resource.participant.length > 0;
+  
               return { 
                 id, 
                 description, 
                 status, 
                 date, 
                 videoUploaded, 
-                readEnabled: videoUploaded 
+                readEnabled: videoUploaded,
+                isAssigned // New property to indicate assigned participants
               };
             });
   
             encounterList.sort((a, b) => new Date(a.date) - new Date(b.date));
             setEncounters(encounterList);
           } else {
-            setEncounters([]); // No encounters
+            setEncounters([]);
           }
         } else if (encountersResponse.status === 401) {
           alert('Unauthorized access. Please log in again.');
@@ -213,6 +95,24 @@ const PatientDetails = () => {
         } else {
           console.error(`Error fetching encounters: ${encountersResponse.status}`);
         }
+  
+        fetch(`${process.env.REACT_APP_API_URL}/api/users/doctors`, {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': authCredentials,
+          },
+        })
+          .then((response) => response.json())
+          .then((data) => setDoctors(data));
+  
+        fetch(`${process.env.REACT_APP_API_URL}/api/users/nurses`, {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': authCredentials,
+          },
+        })
+          .then((response) => response.json())
+          .then((data) => setNurses(data));
       } catch (error) {
         console.error('Error fetching patient or encounters:', error);
       }
@@ -221,205 +121,42 @@ const PatientDetails = () => {
     fetchPatientDetails();
   }, [patientId]);
   
-  
 
-
-  // useEffect(() => {
-  //   const fetchPatientDetails = async () => {  
-  //     try {
-  //       // Fetch patient details
-  //       const patientResponse = await fetch(`${process.env.REACT_APP_API_URL}/patient/${patientId}`, {
-  //         headers: {
-  //           'Content-Type': 'application/json',
-  //           'Authorization': authCredentials, // Use stored credentials
-  //         },
-  //       });
+  const handleDoctorChange = (encounterId, practitionerId) => {
+    updateEncounterParticipants(encounterId, practitionerId, "doctor");
+  };
   
-  //       if (patientResponse.ok) {
-  //         const patientData = await patientResponse.json();
-  //         const name = patientData.name[0];
-  //         setPatient(`${name.given.join(' ')} ${name.family}`);
-  //       } else if (patientResponse.status === 401) {
-  //         alert('Unauthorized access. Please log in again.');
-  //         navigate('/login');
-  //       } else {
-  //         console.error(`Error fetching patient: ${patientResponse.status}`);
-  //       }
+  const handleNurseChange = (encounterId, practitionerId) => {
+    updateEncounterParticipants(encounterId, practitionerId, "nurse");
+  };  
   
-  //       // Fetch encounters
-  //       const encountersResponse = await fetch(`${process.env.REACT_APP_API_URL}/patient/${patientId}/encounters`, {
-  //         headers: {
-  //           'Content-Type': 'application/json',
-  //           'Authorization': authCredentials, // Use stored credentials
-  //         },
-  //       });
+  const updateEncounterParticipants = async (encounterId, practitionerId, role) => {
+    try {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/encounter/${encounterId}/addParticipant`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': authCredentials,
+        },
+        body: JSON.stringify({
+          practitionerId,
+          role,
+        }),
+      });
   
-  //       if (encountersResponse.ok) {
-  //         const encountersData = await encountersResponse.json();
-  //         if (encountersData.entry) {
-  //           const encounterList = encountersData.entry.map(entry => {
-  //             const resource = entry.resource;
-  //             const id = resource.id;
-  //             const description = resource.reasonCode && resource.reasonCode[0] ? resource.reasonCode[0].text : 'No Description';
-  //             const status = resource.status || 'No Status';
-  //             const date = resource.period && resource.period.start ? resource.period.start : 'No Date';
+      if (!response.ok) {
+        throw new Error(`Failed to update encounter: ${response.status}`);
+      }
   
-  //             // Check for videoUploaded extension
-  //             const videoUploadedExtension = resource.extension && resource.extension.find(ext => ext.url === 'http://example.com/fhir/StructureDefinition/videoUploaded');
-  //             const videoUploaded = videoUploadedExtension ? videoUploadedExtension.valueBoolean : false;
-  
-  //             return { id, description, status, date, videoUploaded, readEnabled: videoUploaded, dReport: false };
-  //           });
-  //           encounterList.sort((a, b) => new Date(a.date) - new Date(b.date));
-  //           setEncounters(encounterList);
-  //         } else {
-  //           setEncounters([]); // No encounters
-  //         }
-  //       } else if (encountersResponse.status === 401) {
-  //         alert('Unauthorized access. Please log in again.');
-  //         navigate('/login');
-  //       } else {
-  //         console.error(`Error fetching encounters: ${encountersResponse.status}`);
-  //       }
-  
-  //     } catch (error) {
-  //       console.error('Error fetching patient or encounters:', error);
-  //     }
-  //   };
-  
-  //   fetchPatientDetails();
-  // }, [patientId]);
-  
-//=======================================================================
-
-  // const handleAddEncounter = () => {
-  //   setLoading(true); // Set loading state
-  
-  //   const encounterData = {
-  //     resourceType: "Encounter",
-  //     subject: {
-  //       reference: `Patient/${patientId}`
-  //     },
-  //     period: {
-  //       start: new Date(newEncounter.date).toISOString()
-  //     },
-  //     reasonCode: [{
-  //       text: newEncounter.description
-  //     }],
-  //     status: newEncounter.status
-  //   };  
-    
-  //   const optimisticEnc = {
-  //     id: `optimistic-${Date.now()}`,
-  //     description: newEncounter.description,
-  //     status: newEncounter.status,
-  //     date: new Date(newEncounter.date).toISOString(),
-  //     videoUploaded: false,
-  //     readEnabled: false,
-  //     dReport: false
-  //   };
-  
-  //   setEncounters(prevEncounters => [...prevEncounters, optimisticEnc]);
-  
-  //   fetch(`${process.env.REACT_APP_API_URL}/encounterWithReport`, {
-  //     method: 'POST',
-  //     headers: {
-  //       'Content-Type': 'application/fhir+json',
-  //       'Authorization': authCredentials, // Use stored credentials
-  //     },
-  //     body: JSON.stringify(encounterData),
-  //   })
-  //     .then(response => response.json())
-  //     .then(data => {
-  //       setEncounters(prevEncounters => prevEncounters.map(enc =>
-  //         enc.id === optimisticEnc.id ? {
-  //           id: data.id,
-  //           description: data.reasonCode && data.reasonCode[0] ? data.reasonCode[0].text : 'No Description',
-  //           status: data.status || 'No Status',
-  //           date: data.period && data.period.start ? data.period.start : 'No Date',
-  //           videoUploaded: false,
-  //           readEnabled: false,
-  //           dReport: false
-  //         } : enc
-  //       ));
-  //       setLoading(false); // Clear loading state
-  //       setShowModal(false);
-  //       setNewEncounter({ description: '', date: '', status: 'planned' });
-  //     })
-  //     .catch(error => {
-  //       console.error('Error adding encounter:', error);
-  //       setEncounters(prevEncounters => prevEncounters.filter(enc => enc.id !== optimisticEnc.id));
-  //       setLoading(false); // Clear loading state
-  //     });
-  // };
-
-  // const handleAddEncounter = () => {
-  //   setLoading(true); // Set loading state
-  
-  //   const encounterData = {
-  //     resourceType: "Encounter",
-  //     subject: {
-  //       reference: `Patient/${patientId}`
-  //     },
-  //     period: {
-  //       start: new Date(newEncounter.date).toISOString()
-  //     },
-  //     reasonCode: [{
-  //       text: newEncounter.description
-  //     }],
-  //     status: newEncounter.status
-  //   };
-  
-  //   const optimisticEnc = {
-  //     id: `optimistic-${Date.now()}`,
-  //     description: newEncounter.description,
-  //     status: newEncounter.status,
-  //     date: new Date(newEncounter.date).toISOString(),
-  //     videoUploaded: false,
-  //     readEnabled: false,
-  //     dReport: false
-  //   };
-  
-  //   setEncounters(prevEncounters => [...prevEncounters, optimisticEnc]);
-  
-  //   fetch(`${process.env.REACT_APP_API_URL}/encounterWithReport`, {
-  //     method: 'POST',
-  //     headers: {
-  //       'Content-Type': 'application/fhir+json',
-  //       'Authorization': authCredentials, // Use stored credentials
-  //     },
-  //     body: JSON.stringify(encounterData),
-  //   })
-  //     .then(response => response.json())
-  //     .then(data => {
-  //       // Access the `encounter` field in the combined response
-  //       const createdEncounter = data.encounter;
-  
-  //       // Update the encounters list with the new encounter data
-  //       setEncounters(prevEncounters => prevEncounters.map(enc =>
-  //         enc.id === optimisticEnc.id ? {
-  //           id: createdEncounter.id,
-  //           description: createdEncounter.reasonCode && createdEncounter.reasonCode[0] ? createdEncounter.reasonCode[0].text : 'No Description',
-  //           status: createdEncounter.status || 'No Status',
-  //           date: createdEncounter.period && createdEncounter.period.start ? createdEncounter.period.start : 'No Date',
-  //           videoUploaded: false,
-  //           readEnabled: false,
-  //           dReport: false
-  //         } : enc
-  //       ));
-  //       setLoading(false); // Clear loading state
-  //       setShowModal(false);
-  //       setNewEncounter({ description: '', date: '', status: 'planned' });
-  //     })
-  //     .catch(error => {
-  //       console.error('Error adding encounter:', error);
-  //       setEncounters(prevEncounters => prevEncounters.filter(enc => enc.id !== optimisticEnc.id));
-  //       setLoading(false); // Clear loading state
-  //     });
-  // };
+      return response;
+    } catch (error) {
+      console.error("Error updating encounter:", error);
+      throw error;
+    }
+  }; 
 
   const handleAddEncounter = () => {
-    setLoading(true); // Set loading state
+    setLoading(true);
 
     const encounterData = {
         resourceType: "Encounter",
@@ -450,7 +187,7 @@ const PatientDetails = () => {
         method: 'POST',
         headers: {
             'Content-Type': 'application/fhir+json',
-            'Authorization': authCredentials, // Use stored credentials
+            'Authorization': authCredentials,
         },
         body: JSON.stringify(encounterData),
     })
@@ -467,126 +204,21 @@ const PatientDetails = () => {
                 readEnabled: false
             } : enc
         ));
-        setLoading(false); // Clear loading state
+        setLoading(false);
         setShowModal(false);
         setNewEncounter({ description: '', date: '', status: 'planned' });
     })
     .catch(error => {
         console.error('Error adding encounter:', error);
         setEncounters(prevEncounters => prevEncounters.filter(enc => enc.id !== optimisticEnc.id));
-        setLoading(false); // Clear loading state
+        setLoading(false);
     });
-};
-
-  
-  
+  };  
 
   const handleUploadClick = (index) => {
     setSelectedEncounterIndex(index);
     setShowVideoModal(true);
-  };
-
-  // const handleUpload = async (file) => {
-  //   if (!file) {
-  //     alert('Please select a file to upload');
-  //     return;
-  //   }
-  
-  //   const formData = new FormData();
-  //   formData.append('file', file);
-  //   const encounterId = encounters[selectedEncounterIndex].id; // Define encounterId
-  
-  //   try {
-  //     const response = await fetch(`http://localhost:9090/upload?patientId=${patientId}&encounterId=${encounterId}`, {
-  //       method: 'POST',
-  //       body: formData,
-  //     });
-  
-  //     if (!response.ok) {
-  //       throw new Error('Error uploading file');
-  //     }
-
-  //     const data = await response.json();
-  //     console.log('media created with ID = ', data.id);
-  
-  //     const videoUrl = `http://localhost:9000/videos-bucket/${file.name}`;
-  
-  //     // Update encounter with video URL
-  //     setEncounters(encounters.map((enc, i) => i === selectedEncounterIndex ? {
-  //       ...enc,
-  //       status: 'in-progress',
-  //       videoUploaded: true,
-  //       readEnabled: true,
-  //       videoUrl: videoUrl // Set the correct video URL
-  //     } : enc));
-  //     setShowVideoModal(false);
-  //   } catch (err) {
-  //     console.error('Error uploading video:', err);
-  //   }
-  // };
-
-  // const handleUpload = async (file, setUploadProgress) => {
-  //   if (!file) {
-  //     alert('Please select a file to upload');
-  //     return;
-  //   }
-  
-  //   const formData = new FormData();
-  //   formData.append('file', file);
-  //   const encounterId = encounters[selectedEncounterIndex].id; // Define encounterId
-  
-  //   try {
-  //     // Create a new XMLHttpRequest
-  //     const xhr = new XMLHttpRequest();
-  //     xhr.open('POST', `${process.env.REACT_APP_API_URL}/upload?patientId=${patientId}&encounterId=${encounterId}`, true);
-  
-  //     // Set up the progress event listener
-  //     xhr.upload.onprogress = (event) => {
-  //       if (event.lengthComputable) {
-  //         const percentCompleted = Math.round((event.loaded * 100) / event.total);
-  //         setUploadProgress(percentCompleted);
-  //       }
-  //     };
-  
-  //     // Set up the load event listener
-  //     xhr.onload = () => {
-  //       if (xhr.status === 200) {
-  //         const data = JSON.parse(xhr.responseText);
-  //         console.log('media created with ID = ', data.id);
-  
-  //         const videoUrl = `${process.env.REACT_APP_API_URL}/videos-bucket/${file.name}`;
-          
-  //         // Update encounter with video URL
-  //         setEncounters(encounters.map((enc, i) => i === selectedEncounterIndex ? {
-  //           ...enc,
-  //           status: 'in-progress',
-  //           videoUploaded: true,
-  //           readEnabled: true,
-  //           videoUrl: videoUrl // Set the correct video URL
-  //         } : enc));
-  //         setShowVideoModal(false);
-  //         setUploadProgress(0); // Reset the progress bar after upload
-  //       } else {
-  //         alert('Error uploading file');
-  //         setUploadProgress(0);
-  //       }
-  //     };
-  
-  //     // Set up the error event listener
-  //     xhr.onerror = () => {
-  //       console.error('Error uploading video');
-  //       alert('Error uploading video');
-  //       setUploadProgress(0);
-  //     };
-  
-  //     // Send the form data
-  //     xhr.send(formData);
-  //   } catch (err) {
-  //     console.error('Error uploading video:', err);
-  //     alert('Error uploading video');
-  //     setUploadProgress(0);
-  //   }
-  // };
+  }; 
 
   const handleUpload = async (file, setUploadProgress) => {
     if (!file) {
@@ -596,17 +228,14 @@ const PatientDetails = () => {
   
     const formData = new FormData();
     formData.append('file', file);
-    const encounterId = encounters[selectedEncounterIndex].id; // Define encounterId
+    const encounterId = encounters[selectedEncounterIndex].id;
   
     try {  
-      // Create a new XMLHttpRequest
       const xhr = new XMLHttpRequest();
       xhr.open('POST', `${process.env.REACT_APP_API_URL}/upload?patientId=${patientId}&encounterId=${encounterId}`, true);
   
-      // Set the Authorization header with the stored credentials
       xhr.setRequestHeader('Authorization', authCredentials);
   
-      // Set up the progress event listener
       xhr.upload.onprogress = (event) => {
         if (event.lengthComputable) {
           const percentCompleted = Math.round((event.loaded * 100) / event.total);
@@ -614,7 +243,6 @@ const PatientDetails = () => {
         }
       };
   
-      // Set up the load event listener
       xhr.onload = () => {
         if (xhr.status === 200) {
           const data = JSON.parse(xhr.responseText);
@@ -622,30 +250,27 @@ const PatientDetails = () => {
   
           const videoUrl = `${process.env.REACT_APP_API_URL}/videos-bucket/${file.name}`;
           
-          // Update encounter with video URL
           setEncounters(encounters.map((enc, i) => i === selectedEncounterIndex ? {
             ...enc,
             status: 'in-progress',
             videoUploaded: true,
             readEnabled: true,
-            videoUrl: videoUrl // Set the correct video URL
+            videoUrl: videoUrl
           } : enc));
           setShowVideoModal(false);
-          setUploadProgress(0); // Reset the progress bar after upload
+          setUploadProgress(0);
         } else {
           alert('Error uploading file');
           setUploadProgress(0);
         }
       };
   
-      // Set up the error event listener
       xhr.onerror = () => {
         console.error('Error uploading video');
         alert('Error uploading video');
         setUploadProgress(0);
       };
   
-      // Send the form data
       xhr.send(formData);
     } catch (err) {
       console.error('Error uploading video:', err);
@@ -653,18 +278,15 @@ const PatientDetails = () => {
       setUploadProgress(0);
     }
   };
-  
-  
-  
 
   const handleReadClick = async (encounter) => {
     try {
-      const authCredentials = localStorage.getItem('authCredentials'); // Retrieve stored credentials
+      const authCredentials = localStorage.getItem('authCredentials');
   
       const response = await fetch(`${process.env.REACT_APP_API_URL}/encounter/${encounter.id}`, {
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': authCredentials, // Use stored credentials
+          'Authorization': authCredentials,
         },
       });
   
@@ -691,8 +313,7 @@ const PatientDetails = () => {
     } catch (error) {
       console.error('Error fetching encounter details:', error);
     }
-  };
-  
+  };  
   
   const getStatusColor = (status) => {
     switch(status) {
@@ -711,17 +332,16 @@ const PatientDetails = () => {
 
   const generatePDF = async (encounter) => {
     try {
-      const authCredentials = localStorage.getItem('authCredentials'); // Retrieve stored credentials
+      const authCredentials = localStorage.getItem('authCredentials');
   
       const response = await fetch(`${process.env.REACT_APP_API_URL}/diagnostic-report?encounterId=${encounter.id}`, {
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': authCredentials, // Use stored credentials
+          'Authorization': authCredentials,
         },
       });
   
       if (response.status === 404) {
-        // Generate PDF without conclusion and images
         const doc = new jsPDF();
         doc.text(`SeeDoc`, 10, 280);
         doc.text(`Patient: ${patient}`, 10, 10);
@@ -741,24 +361,24 @@ const PatientDetails = () => {
       if (data.resourceType === "DiagnosticReport") {
         doc.text(`Conclusion: ${data.conclusion}`, 10, 50);
   
-        let currentY = 60; // Start position for images
-        const maxY = 270; // Maximum Y position on a page
+        let currentY = 60;
+        const maxY = 270;
   
         const imagePromises = data.presentedForm.map((form, index) => {
           return new Promise((resolve) => {
             const img = new Image();
             img.src = form.url;
             img.onload = () => {
-              const imgWidth = 100; // Fixed width for images
-              const imgHeight = (img.height / img.width) * imgWidth; // Maintain aspect ratio
+              const imgWidth = 100;
+              const imgHeight = (img.height / img.width) * imgWidth;
   
               if (currentY + imgHeight > maxY) {
                 doc.addPage();
-                currentY = 10; // Reset Y position for new page
+                currentY = 10;
               }
   
-              doc.addImage(img, 'PNG', 10, currentY, imgWidth, imgHeight); // Adjust the positioning as needed
-              currentY += imgHeight + 10; // Add space between images
+              doc.addImage(img, 'PNG', 10, currentY, imgWidth, imgHeight);
+              currentY += imgHeight + 10;
   
               resolve();
             };
@@ -773,13 +393,91 @@ const PatientDetails = () => {
       console.error('Error generating PDF:', error);
     }
   };
+
+  const openAssignModal = async (encounterId) => {
+    try {
+        setSelectedEncounterId(encounterId);
+        const response = await fetch(`${process.env.REACT_APP_API_URL}/encounter/${encounterId}`, {
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': authCredentials,
+            },
+        });
+        
+        if (response.ok) {
+            const encounterData = await response.json();
+            
+            // Check if there are participants
+            if (encounterData.participant && encounterData.participant.length > 0) {
+                const doctor = encounterData.participant.find((p) => p.type && p.type[0].text === "Doctor");
+                const nurse = encounterData.participant.find((p) => p.type && p.type[0].text === "Nurse");
+
+                setAssignedStaff({
+                    doctorId: doctor ? doctor.individual.reference.split('/')[1] : null,
+                    nurseId: nurse ? nurse.individual.reference.split('/')[1] : null
+                });
+            } else {
+                // No participants assigned
+                setAssignedStaff({
+                    doctorId: null,
+                    nurseId: null,
+                    message: "No assigned staff yet"
+                });
+            }
+
+            setShowAssignModal(true);
+        } else {
+            console.error("Failed to fetch encounter data:", response.status);
+        }
+    } catch (error) {
+        console.error("Error fetching assigned staff:", error);
+    }
+  };
+
+  const closeAssignModal = () => {
+    setShowAssignModal(false);
+    setSelectedDoctor('');
+    setSelectedNurse('');
+  };
+
+  const handleAssignParticipants = async () => {
+    if (!selectedDoctor) {
+      alert("Please select a doctor.");
+      return;
+    }
   
+    try {
+      const doctorResponse = await updateEncounterParticipants(selectedEncounterId, selectedDoctor, "doctor");
+      
+      if (doctorResponse.ok) {
+        console.log("Doctor assigned successfully.");
+  
+        if (selectedNurse) {
+          const nurseResponse = await updateEncounterParticipants(selectedEncounterId, selectedNurse, "nurse");
+  
+          if (nurseResponse.ok) {
+            console.log("Nurse assigned successfully.");
+          } else {
+            console.error("Failed to assign nurse:", nurseResponse.statusText);
+          }
+        }
+      } else {
+        console.error("Failed to assign doctor:", doctorResponse.statusText);
+      }
+    } catch (error) {
+      console.error("Error updating encounter:", error);
+    } finally {
+      closeAssignModal();
+    }
+  };  
+
+  const hasAssignedStaff = (encounter) => {
+    return encounter.participant && Array.isArray(encounter.participant) && encounter.participant.length > 0;
+  };
 
   return (
-    <div>
-      
-      <h1>{patient + ' ID(' + patientId + ')'}</h1>
-      
+    <div>      
+      <h1>{patient + ' ID(' + patientId + ')'}</h1>      
       <button onClick={() => setShowModal(true)}>Add Encounter</button>
       {loading && <p>Loading...</p>}
       <button className="danger" onClick={() => navigate('/patients')}>Back</button>
@@ -791,6 +489,7 @@ const PatientDetails = () => {
             <th>Description</th>
             <th>Status</th>
             <th>Date</th>
+            <th>Staff</th>
             <th>Video</th>
             <th>Reading</th>
             <th>D-Report</th>
@@ -802,42 +501,67 @@ const PatientDetails = () => {
               <td colSpan="8">No encounters found</td>
             </tr>
           ) : (
-            encounters.map((encounter, index) => (
-              <tr key={index} className="encounter-row">
-                <td>{index + 1}</td>
-                <td>{encounter.id}</td>
-                <td>{encounter.description}</td>
-                <td style={{ backgroundColor: getStatusColor(encounter.status) }}>
-                  {encounter.status}
-                </td>
-                <td>{new Date(encounter.date).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })}</td>
-                <td>
-                  {encounter.videoUploaded ? (
-                    <span>A video has been uploaded</span>
-                  ) : (
-                    <button onClick={() => handleUploadClick(index)}>Upload Video</button>
-                  )}
-                </td>
-                <td>
-                  {encounter.readEnabled ? (
-                    <button onClick={() => handleReadClick(encounter)}>
-                      {encounter.status === 'finished' ? 'Review' : 'Read'}
+            encounters.map((encounter, index) => {
+              // Check if encounter has assigned staff
+              const isAssigned = hasAssignedStaff(encounter);
+              return (
+                <tr key={index} className="encounter-row">
+                  <td>{index + 1}</td>
+                  <td>{encounter.id}</td>
+                  <td>{encounter.description}</td>
+                  <td style={{ backgroundColor: getStatusColor(encounter.status) }}>
+                    {encounter.status}
+                  </td>
+                  <td>
+                    {new Date(encounter.date).toLocaleString("en-GB", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      hour12: true,
+                    })}
+                  </td>
+                  <td>
+                    <button onClick={() => openAssignModal(encounter.id)}>Assign</button>
+                    <span style={{ marginLeft: "8px" }}>
+                      {encounter.isAssigned ? (
+                        <FontAwesomeIcon icon={faUserMd} title="Staff assigned" className="assigned-icon" />
+                      ) : (
+                        <FontAwesomeIcon icon={faTimesCircle} title="No staff assigned" className="not-assigned-icon" />
+                      )}
+                    </span>
+                  </td>
+                  <td>
+                    {encounter.videoUploaded ? (
+                      <span>A video has been uploaded</span>
+                    ) : (
+                      <button onClick={() => handleUploadClick(index)}>
+                        Upload Video
+                      </button>
+                    )}
+                  </td>
+                  <td>
+                    {encounter.readEnabled ? (
+                      <button onClick={() => handleReadClick(encounter)}>
+                        {encounter.status === "finished" ? "Review" : "Read"}
+                      </button>
+                    ) : (
+                      <button disabled>Read</button>
+                    )}
+                  </td>
+                  <td>
+                    <button
+                      onClick={() => encounter.status === "finished" && generatePDF(encounter)}
+                      disabled={encounter.status !== "finished"}
+                      style={{ opacity: encounter.status === "finished" ? 1 : 0.5 }}
+                    >
+                      <img src={pdfIcon} alt="PDF Icon" width="20" height="20" />
                     </button>
-                  ) : (
-                    <button disabled>Read</button>
-                  )}
-                </td>
-                <td>
-                  <button 
-                    onClick={() => encounter.status === 'finished' && generatePDF(encounter)}
-                    disabled={encounter.status !== 'finished'}
-                    style={{ opacity: encounter.status === 'finished' ? 1 : 0.5 }} // Fades the icon if not finished
-                  >
-                    <img src={pdfIcon} alt="PDF Icon" width="20" height="20" />
-                  </button>
-                </td>
-              </tr>
-            ))
+                  </td>
+                </tr>
+              );
+            })
           )}
         </tbody>
       </table>
@@ -853,6 +577,18 @@ const PatientDetails = () => {
         handleClose={() => setShowVideoModal(false)}
         handleUpload={handleUpload}
       />
+      <AssignModal
+        show={showAssignModal}
+        onClose={closeAssignModal}
+        doctors={doctors}
+        nurses={nurses}
+        selectedDoctor={selectedDoctor}
+        setSelectedDoctor={setSelectedDoctor}
+        selectedNurse={selectedNurse}
+        setSelectedNurse={setSelectedNurse}
+        assignedStaff={assignedStaff}
+        handleAssignParticipants={handleAssignParticipants}
+      />      
     </div>
   );
 };

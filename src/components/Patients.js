@@ -93,6 +93,7 @@ const Patients = () => {
           fullName: `${name.given.join(' ')} ${name.family}`,
           familyName: name.family,
           birthDate: data.birthDate,
+          gender: data.gender,
           id: data.id
         }]);
         setShowModal(false);
@@ -102,7 +103,6 @@ const Patients = () => {
   };  
 
   const handlePatientClick = (id) => {
-    console.log('patientId = ' , id);
     navigate(`/patient/${id}`);
   };
 

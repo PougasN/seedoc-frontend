@@ -659,7 +659,7 @@ const VideoPlayer = () => {
             </div>            
           </div>
           <div className={`controls-toolbar ${isFullScreen ? 'full-screen-toolbar' : ''}`}>  
-            <div className="controls-left">        
+            {/* <div className="controls-left">        
               <button title={isPlaying ? "Pause" : "Play"} onClick={handlePlayPause}>
                   <FontAwesomeIcon icon={isPlaying ? faPause : faPlay} />
               </button>          
@@ -703,7 +703,65 @@ const VideoPlayer = () => {
               <button title="Toggle Fullscreen" onClick={handleFullScreenToggle}>
                 <FontAwesomeIcon icon={isFullScreen ? faCompress : faExpand} />
               </button>
+            </div> */}
+
+            <div className="controls-left">
+              <button
+                data-tooltip={isPlaying ? "Pause" : "Play"}
+                onClick={handlePlayPause}
+              >
+                <FontAwesomeIcon icon={isPlaying ? faPause : faPlay} />
+              </button>
+
+              <div className="speed-control">
+                <label>Speed:</label>
+                <input
+                  type="number"
+                  value={speed}
+                  min="0.05"
+                  max="2"
+                  step="0.05"
+                  onChange={(e) => {
+                    const newSpeed = parseFloat(e.target.value);
+                    if (newSpeed >= 0.01 && newSpeed <= 2) {
+                      setSpeed(newSpeed);
+                    }
+                  }}
+                />
+              </div>
+
+              <button data-tooltip="Back 10s" onClick={handleRewind}>
+                <FontAwesomeIcon icon={faBackwardFast} />
+              </button>
+              <button data-tooltip="Forward 10s" onClick={handleForward}>
+                <FontAwesomeIcon icon={faForwardFast} />
+              </button>
+              <button data-tooltip="Previous Frame" onClick={handleFrameBackward}>
+                <FontAwesomeIcon icon={faStepBackward} />
+              </button>
+              <button data-tooltip="Next Frame" onClick={handleFrameForward}>
+                <FontAwesomeIcon icon={faStepForward} />
+              </button>
             </div>
+
+            <div className="controls-right">
+              <button data-tooltip="Previous Finding" onClick={goToPreviousFinding}>
+                <FontAwesomeIcon icon={faArrowLeft} />
+              </button>
+              <button data-tooltip="Next Finding" onClick={goToNextFinding}>
+                <FontAwesomeIcon icon={faArrowRight} />
+              </button>
+              <button
+                data-tooltip="Toggle Fullscreen"
+                onClick={handleFullScreenToggle}
+              >
+                <FontAwesomeIcon icon={isFullScreen ? faCompress : faExpand} />
+              </button>
+            </div>
+
+
+
+
           </div>
           <div className="progress-info">
             <span>[Frame: {Math.floor(currentTime * 5)} / {Math.floor(duration * 5)}] {((currentTime / duration) * 100).toFixed(2)}%</span>
