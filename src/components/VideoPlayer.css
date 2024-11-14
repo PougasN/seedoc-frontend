@@ -39,6 +39,7 @@ button {
 .modal-content button {
   margin: 10px 5px;
   padding: 10px 20px;
+  align-items: center;
 }
 
 .video-player-container .header {
@@ -344,6 +345,7 @@ button {
   justify-content: flex-end;
   gap: 10px;
   margin-top: 15px;
+  justify-self: center;
 }
 
 /* Report Modal Specific Styles */
@@ -377,6 +379,7 @@ button {
   display: flex;
   justify-content: space-around;
   margin-top: 20px;
+  justify-self: center;
 }
 
 .confirmation-buttons button {

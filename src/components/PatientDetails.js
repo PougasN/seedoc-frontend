@@ -27,8 +27,14 @@ const PatientDetails = () => {
   const [selectedDoctor, setSelectedDoctor] = useState('');
   const [selectedNurse, setSelectedNurse] = useState('');   
   const [assignedStaff, setAssignedStaff] = useState({ doctorId: null, nurseId: null });
+  const [skipNextFetch, setSkipNextFetch] = useState(false);
   
   useEffect(() => {
+    if (skipNextFetch) {
+      // Reset the flag and skip this fetch for assign icon to update instantly
+      setSkipNextFetch(false);
+      return;
+    }
     const fetchPatientDetails = async () => {  
       try {
         const patientResponse = await fetch(`${process.env.REACT_APP_API_URL}/patient/${patientId}`, {
@@ -119,7 +125,7 @@ const PatientDetails = () => {
     };
   
     fetchPatientDetails();
-  }, [patientId]);
+  }, [patientId, skipNextFetch]);
 
   
   
@@ -397,52 +403,150 @@ const PatientDetails = () => {
     }
   };
 
+  // const openAssignModal = async (encounterId) => {
+  //   try {
+  //       setSelectedEncounterId(encounterId);
+  //       const response = await fetch(`${process.env.REACT_APP_API_URL}/encounter/${encounterId}`, {
+  //           headers: {
+  //               'Content-Type': 'application/json',
+  //               'Authorization': authCredentials,
+  //           },
+  //       });
+        
+  //       if (response.ok) {
+  //           const encounterData = await response.json();
+            
+  //           // Check if there are participants
+  //           if (encounterData.participant && encounterData.participant.length > 0) {
+  //               const doctor = encounterData.participant.find((p) => p.type && p.type[0].text === "Doctor");
+  //               const nurse = encounterData.participant.find((p) => p.type && p.type[0].text === "Nurse");
+
+  //               setAssignedStaff({
+  //                   doctorId: doctor ? doctor.individual.reference.split('/')[1] : null,
+  //                   nurseId: nurse ? nurse.individual.reference.split('/')[1] : null
+  //               });
+  //           } else {
+  //               // No participants assigned
+  //               setAssignedStaff({
+  //                   doctorId: null,
+  //                   nurseId: null,
+  //                   message: "No assigned staff yet"
+  //               });
+  //           }
+            
+
+  //           setShowAssignModal(true);
+  //       } else {
+  //           console.error("Failed to fetch encounter data:", response.status);
+  //       }
+  //   } catch (error) {
+  //       console.error("Error fetching assigned staff:", error);
+  //   }
+  // };
+
   const openAssignModal = async (encounterId) => {
     try {
-        setSelectedEncounterId(encounterId);
-        const response = await fetch(`${process.env.REACT_APP_API_URL}/encounter/${encounterId}`, {
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': authCredentials,
-            },
-        });
+      setSelectedEncounterId(encounterId);
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/encounter/${encounterId}`, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': authCredentials,
+        },
+      });
+      
+      if (response.ok) {
+        const encounterData = await response.json();
         
-        if (response.ok) {
-            const encounterData = await response.json();
-            
-            // Check if there are participants
-            if (encounterData.participant && encounterData.participant.length > 0) {
-                const doctor = encounterData.participant.find((p) => p.type && p.type[0].text === "Doctor");
-                const nurse = encounterData.participant.find((p) => p.type && p.type[0].text === "Nurse");
-
-                setAssignedStaff({
-                    doctorId: doctor ? doctor.individual.reference.split('/')[1] : null,
-                    nurseId: nurse ? nurse.individual.reference.split('/')[1] : null
-                });
-            } else {
-                // No participants assigned
-                setAssignedStaff({
-                    doctorId: null,
-                    nurseId: null,
-                    message: "No assigned staff yet"
-                });
-            }
-
-            setShowAssignModal(true);
+        // Check if there are participants
+        if (encounterData.participant && encounterData.participant.length > 0) {
+          const doctor = encounterData.participant.find((p) => p.type && p.type[0].text === "Doctor");
+          const nurse = encounterData.participant.find((p) => p.type && p.type[0].text === "Nurse");
+  
+          setAssignedStaff({
+            doctorId: doctor ? doctor.individual.reference.split('/')[1] : null,
+            nurseId: nurse ? nurse.individual.reference.split('/')[1] : null
+          });
         } else {
-            console.error("Failed to fetch encounter data:", response.status);
+          // No participants assigned
+          setAssignedStaff({
+            doctorId: null,
+            nurseId: null,
+            message: "No assigned staff yet"
+          });
         }
+  
+        setEncounters((prevEncounters) =>
+          prevEncounters.map((enc) =>
+            enc.id === encounterId
+              ? { ...enc, isAssigned: assignedStaff.doctorId || assignedStaff.nurseId }
+              : enc
+          )
+        );
+  
+        setShowAssignModal(true);
+      } else {
+        console.error("Failed to fetch encounter data:", response.status);
+      }
     } catch (error) {
-        console.error("Error fetching assigned staff:", error);
+      console.error("Error fetching assigned staff:", error);
     }
   };
+  
+
+  // const closeAssignModal = () => {
+  //   setShowAssignModal(false);
+  //   setSelectedDoctor('');
+  //   setSelectedNurse('');
+  // };
 
   const closeAssignModal = () => {
     setShowAssignModal(false);
     setSelectedDoctor('');
     setSelectedNurse('');
+  
+    // Update the encounter assignment status
+    setEncounters((prevEncounters) =>
+      prevEncounters.map((enc) =>
+        enc.id === selectedEncounterId
+          ? { ...enc, isAssigned: assignedStaff.doctorId || assignedStaff.nurseId }
+          : enc
+      )
+    );
   };
+  
 
+  // const handleAssignParticipants = async () => {
+  //   if (!selectedDoctor) {
+  //     alert("Please select a doctor.");
+  //     return;
+  //   }
+  
+  //   try {
+  //     const doctorResponse = await updateEncounterParticipants(selectedEncounterId, selectedDoctor, "doctor");
+      
+  //     if (doctorResponse.ok) {
+  //       console.log("Doctor assigned successfully.");
+  
+  //       if (selectedNurse) {
+  //         const nurseResponse = await updateEncounterParticipants(selectedEncounterId, selectedNurse, "nurse");
+  
+  //         if (nurseResponse.ok) {
+  //           console.log("Nurse assigned successfully.");
+  //         } else {
+  //           console.error("Failed to assign nurse:", nurseResponse.statusText);
+  //         }
+  //       }
+  //     } else {
+  //       console.error("Failed to assign doctor:", doctorResponse.statusText);
+  //     }
+  //   } catch (error) {
+  //     console.error("Error updating encounter:", error);
+  //   } finally {
+  //     closeAssignModal();
+  //   }
+  // };
+  
+  // This one updates the assign icon instantly
   const handleAssignParticipants = async () => {
     if (!selectedDoctor) {
       alert("Please select a doctor.");
@@ -451,26 +555,43 @@ const PatientDetails = () => {
   
     try {
       const doctorResponse = await updateEncounterParticipants(selectedEncounterId, selectedDoctor, "doctor");
-      
-      if (doctorResponse.ok) {
-        console.log("Doctor assigned successfully.");
   
+      if (doctorResponse.ok) {
         if (selectedNurse) {
           const nurseResponse = await updateEncounterParticipants(selectedEncounterId, selectedNurse, "nurse");
   
-          if (nurseResponse.ok) {
-            console.log("Nurse assigned successfully.");
-          } else {
+          if (!nurseResponse.ok) {
             console.error("Failed to assign nurse:", nurseResponse.statusText);
           }
         }
+  
+        // Directly update the isAssigned property in the encounters list
+        setEncounters((prevEncounters) => {
+          const updatedEncounters = [...prevEncounters]; // Create a shallow copy
+          const encounterIndex = updatedEncounters.findIndex(enc => enc.id === selectedEncounterId);
+  
+          if (encounterIndex !== -1) {
+            updatedEncounters[encounterIndex] = {
+              ...updatedEncounters[encounterIndex],
+              isAssigned: true
+            };
+            console.log("Updated specific encounter with isAssigned:", updatedEncounters[encounterIndex]); // Confirm update
+          }
+  
+          return updatedEncounters; // Update the state
+        });
+
+              setSkipNextFetch(true); // Prevent immediate re-fetch
+
+  
       } else {
         console.error("Failed to assign doctor:", doctorResponse.statusText);
       }
     } catch (error) {
       console.error("Error updating encounter:", error);
     } finally {
-      closeAssignModal();
+      // Slight delay to ensure state has updated before closing modal
+      setTimeout(() => closeAssignModal(), 100); // 100ms delay to ensure React picks up state update
     }
   };  
 
@@ -501,7 +622,7 @@ const PatientDetails = () => {
         <tbody>
           {encounters.length === 0 ? (
             <tr>
-              <td colSpan="8">No encounters found</td>
+              <td colSpan="9">No encounters found</td>
             </tr>
           ) : (
             encounters.map((encounter, index) => {
@@ -580,6 +701,18 @@ const PatientDetails = () => {
         handleClose={() => setShowVideoModal(false)}
         handleUpload={handleUpload}
       />
+      {/* <AssignModal
+        show={showAssignModal}
+        onClose={closeAssignModal}
+        doctors={doctors}
+        nurses={nurses}
+        selectedDoctor={selectedDoctor}
+        setSelectedDoctor={setSelectedDoctor}
+        selectedNurse={selectedNurse}
+        setSelectedNurse={setSelectedNurse}
+        assignedStaff={assignedStaff}
+        handleAssignParticipants={handleAssignParticipants}
+      />       */}
       <AssignModal
         show={showAssignModal}
         onClose={closeAssignModal}
@@ -591,7 +724,8 @@ const PatientDetails = () => {
         setSelectedNurse={setSelectedNurse}
         assignedStaff={assignedStaff}
         handleAssignParticipants={handleAssignParticipants}
-      />      
+      />
+
     </div>
   );
 };

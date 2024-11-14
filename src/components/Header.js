@@ -35,7 +35,10 @@ const Header = () => {
 
   return (
     <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 20px', background: '#f5f5f5' }}>
-      <img src={logo} alt="SeeDoc Logo" style={{ height: '50px' }} />
+      <div style={{ display: 'flex', alignItems: 'center', fontSize: 20 }}>
+        <img src={logo} alt="SeeDoc Logo" style={{ height: '50px' }} />
+        <span style={{ marginLeft: '20px' }}>Capsule Reader Software</span>
+      </div>
       <div style={{ display: 'flex', alignItems: 'center' }}>
         <span style={{ marginRight: '20px' }}>Welcome, {userInfo.role} {userInfo.username}</span>
         <button onClick={handleLogout}>Logout</button>

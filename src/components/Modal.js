@@ -54,7 +54,7 @@ const Modal = ({ show, handleClose, handleSave, newPatient, setNewPatient, newEn
               onChange={e => setNewEncounter({ ...newEncounter, date: e.target.value })}
               placeholder="Enter date"
             />
-            <select
+            {/* <select
               value={newEncounter.status}
               onChange={e => setNewEncounter({ ...newEncounter, status: e.target.value })}
             >
@@ -62,7 +62,7 @@ const Modal = ({ show, handleClose, handleSave, newPatient, setNewPatient, newEn
               <option value="in-progress">In Progress</option>
               <option value="completed">Completed</option>
               <option value="cancelled">Cancelled</option>
-            </select>
+            </select> */}
           </>
         )}
         <div className="modal-actions">

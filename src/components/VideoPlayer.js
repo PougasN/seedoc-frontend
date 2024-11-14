@@ -522,7 +522,7 @@ const VideoPlayer = () => {
             config={{ file: { attributes: { crossOrigin: 'anonymous' } } }}
           />
           <div className="overlay-button-wrapper">            
-            {encounterStatus !== 'finished' && !isPreRead ? (
+            {encounterStatus === 'in-progress' && (userRole === 'ROLE_DOCTOR' || (userRole === 'ROLE_NURSE' && !isPreRead)) ? (
               <div title="Add Finding" className="overlay-finding-button" onClick={handleAddFinding}>
                 <FontAwesomeIcon icon={faCirclePlus} />
               </div>

@@ -2,7 +2,18 @@
 import React from 'react';
 import './Modal.css';
 
-const AssignModal = ({ show, onClose, doctors, nurses, selectedDoctor, setSelectedDoctor, selectedNurse, setSelectedNurse, assignedStaff, handleAssignParticipants }) => {
+const AssignModal = ({ 
+   show, 
+   onClose, 
+   doctors, 
+   nurses, 
+   selectedDoctor, 
+   setSelectedDoctor, 
+   selectedNurse, 
+   setSelectedNurse, 
+   assignedStaff, 
+   handleAssignParticipants 
+}) => {
    if (!show) return null;
 
    return (
@@ -12,13 +23,12 @@ const AssignModal = ({ show, onClose, doctors, nurses, selectedDoctor, setSelect
             
             {assignedStaff.doctorId || assignedStaff.nurseId ? (
                <>
-                  <p>Assigned Doctor: {assignedStaff.doctorId || "None"}</p>
-                  <p>Assigned Nurse: {assignedStaff.nurseId || "None"}</p>
+                  <p>Assigned Doctor: {assignedStaff.doctorId || "None"} PractitionerId</p>
+                  <p>Assigned Nurse: {assignedStaff.nurseId || "None"} PractitionerId</p>
                </>
             ) : (
                <p>No assigned staff yet</p>
             )}
-
 
             {/* Doctor dropdown */}
             <select value={selectedDoctor} onChange={(e) => setSelectedDoctor(e.target.value)}>
@@ -37,13 +47,13 @@ const AssignModal = ({ show, onClose, doctors, nurses, selectedDoctor, setSelect
             </select>
 
             <div className="modal-actions">
-            <button 
-               onClick={handleAssignParticipants} 
-               disabled={!!assignedStaff.doctorId} 
-               style={{ opacity: assignedStaff.doctorId ? 0.5 : 1 }}
-            >
-               Assign
-            </button>
+               <button 
+                  onClick={handleAssignParticipants} 
+                  disabled={!!assignedStaff.doctorId} 
+                  style={{ opacity: assignedStaff.doctorId ? 0.5 : 1 }}
+               >
+                  Assign
+               </button>
                <button onClick={onClose}>Cancel</button>
             </div>
          </div>

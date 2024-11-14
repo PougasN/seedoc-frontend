@@ -15,8 +15,10 @@ const DoctorEncounters = () => {
   const role = localStorage.getItem('userRole'); // Get user role from localStorage
   const userName = localStorage.getItem('userName');
   const [isPreRead, setIsPreRead] = useState('0');
+  const [filteredEncounters, setFilteredEncounters] = useState([]);
+  const [filter, setFilter] = useState('all');
+  const [counts, setCounts] = useState({ pending: 0, completed: 0, all: 0 });
 
-  
 
   useEffect(() => {
     const fetchEncounters = async () => {
@@ -54,6 +56,7 @@ const DoctorEncounters = () => {
               ext => ext.url === 'http://example.com/fhir/StructureDefinition/nursePreReadStatus'
             );
             const isPreRead = nursePreReadStatusExtension ? nursePreReadStatusExtension.valueBoolean : false;
+            
 
             return {
               id,
@@ -69,6 +72,9 @@ const DoctorEncounters = () => {
           });
 
           setEncounters(encountersWithPatientId);
+          updateCounts(encountersWithPatientId);
+          setFilteredEncounters(encountersWithPatientId);
+
         } else if (response.status === 401) {
           alert('Unauthorized access. Please log in again.');
           navigate('/login');
@@ -81,6 +87,7 @@ const DoctorEncounters = () => {
     };
 
     fetchEncounters();
+    handleFilter(filter);
   }, [practitionerId, authCredentials, navigate]);
 
   const handleReadClick = async (encounter) => {
@@ -232,13 +239,21 @@ const DoctorEncounters = () => {
   
           const videoUrl = `${process.env.REACT_APP_API_URL}/videos-bucket/${file.name}`;
           
-          setEncounters(encounters.map((enc, i) => i === selectedEncounterIndex ? {
-            ...enc,
-            status: 'in-progress',
-            videoUploaded: true,
-            readEnabled: true,
-            videoUrl: videoUrl
-          } : enc));
+          // Update the specific encounter in `encounters`
+          const updatedEncounters = encounters.map((enc, i) => 
+            i === selectedEncounterIndex 
+              ? { ...enc, status: 'in-progress', videoUploaded: true, readEnabled: true, videoUrl } 
+              : enc
+          );
+          setEncounters(updatedEncounters);
+
+          // Apply the current filter to update filteredEncounters directly
+          setFilteredEncounters(updatedEncounters.filter(enc => {
+            if (filter === 'pending') return enc.status !== 'finished';
+            if (filter === 'completed') return enc.status === 'finished';
+            return true;
+          }));
+
           setShowVideoModal(false);
           setUploadProgress(0);
         } else {
@@ -259,19 +274,45 @@ const DoctorEncounters = () => {
       alert('Error uploading video');
       setUploadProgress(0);
     }
-  }; 
+  };
+
+  const handleFilter = (status) => {
+    setFilter(status);
+
+    if (status === 'pending') {
+      setFilteredEncounters(encounters.filter(enc => enc.status !== 'finished'));
+    } else if (status === 'completed') {
+      setFilteredEncounters(encounters.filter(enc => enc.status === 'finished'));
+    } else {
+      setFilteredEncounters(encounters); // Show all encounters
+    }
+  };
+
+  const updateCounts = (data) => {
+    const pendingCount = data.filter(enc => enc.status !== 'finished').length;
+    const completedCount = data.filter(enc => enc.status === 'finished').length;
+    setCounts({
+      pending: pendingCount,
+      completed: completedCount,
+      all: data.length
+    });
+  };
 
   return (
     <div>      
-      {/* <h1>Doctor's Encounters</h1> */}
       <h1>{`${role === 'ROLE_DOCTOR' ? 'Dr.' : 'Nr.'} ${userName}'s Encounters`}</h1>
+      <div>
+        <button onClick={() => handleFilter('pending')}>Pending Review ({counts.pending})</button>
+        <button onClick={() => handleFilter('completed')}>Completed ({counts.completed})</button>
+        <button onClick={() => handleFilter('all')}>All ({counts.all})</button>
+      </div>
 
       <table>
         <thead>
           <tr>
             <th>#</th>
-            <th>Encounter ID</th>
-            <th>Patient ID</th>
+            {/* <th>Encounter ID</th>
+            <th>Patient ID</th> */}
             <th>Description</th>
             <th>Status</th>
             <th>Date</th>
@@ -287,11 +328,11 @@ const DoctorEncounters = () => {
               <td colSpan="9">No encounters found</td>
             </tr>
           ) : (
-            encounters.map((encounter, index) => (
+            filteredEncounters.map((encounter, index) => (
               <tr key={encounter.id}>
                 <td>{index + 1}</td>
-                <td>{encounter.id}</td>
-                <td>{encounter.patientId}</td>
+                {/* <td>{encounter.id}</td>
+                <td>{encounter.patientId}</td> */}
                 <td>{encounter.description}</td>
                 <td style={{ backgroundColor: getStatusColor(encounter.status) }}>
                   {encounter.status}
@@ -300,7 +341,7 @@ const DoctorEncounters = () => {
                 {role === 'ROLE_DOCTOR' && (
                   <td>
                     {encounter.videoUploaded ? (
-                      <span>A video has been uploaded ✅</span>
+                      <span>A video has been uploaded.</span>
                     ) : (
                       <button onClick={() => handleUploadClick(index)}>
                         Upload Video
@@ -308,7 +349,7 @@ const DoctorEncounters = () => {
                     )}
                   </td>
                 )}
-                <td>
+                {/* <td>
                   {encounter.readEnabled ? (
                     <button onClick={() => handleReadClick(encounter)}>
                       {role === "ROLE_DOCTOR"
@@ -319,6 +360,27 @@ const DoctorEncounters = () => {
                           ? "Review"
                           : "PreReading"}
                     </button>
+      
+                  ) : (
+                    <button disabled>{role === "ROLE_DOCTOR" ? "Reading" : "PreReading"}</button>
+                  )}
+                </td> */}
+                <td>
+                  {encounter.readEnabled ? (
+                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                      <button onClick={() => handleReadClick(encounter)}>
+                        {role === "ROLE_DOCTOR"
+                          ? encounter.status === "finished"
+                            ? "Review"
+                            : "Reading"
+                          : encounter.isPreRead || encounter.status === "finished"
+                            ? "Review"
+                            : "PreReading"}
+                      </button>
+                      {role === "ROLE_DOCTOR" && encounter.isPreRead && (
+                        <span title='PreReading Done'> ✅ </span>
+                      )}
+                    </div>
                   ) : (
                     <button disabled>{role === "ROLE_DOCTOR" ? "Reading" : "PreReading"}</button>
                   )}
