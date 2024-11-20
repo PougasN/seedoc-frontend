@@ -1,6 +1,4 @@
-/* Style for the modal and its components */
-
-.modal {
+.upload-video-modal {
   position: fixed;
   z-index: 1000;
   left: 0;
@@ -13,7 +11,7 @@
   align-items: center;
 }
 
-.modal-content {
+.video-modal-content {
   background-color: #fff;
   padding: 20px;
   border-radius: 8px;
@@ -32,11 +30,16 @@
 
 .file-input-label {
   padding: 10px 20px;
-  background-color: #4CAF50;
+  background-color: rgb(55, 133, 255);
   color: white;
   cursor: pointer;
   border-radius: 4px;
   margin-right: 10px;
+}
+
+.file-input-label:hover {
+  background-color: rgb(55, 103, 255);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
 
 .file-name {
@@ -44,24 +47,98 @@
   color: #555;
 }
 
-.modal-actions {
+.upload-video-modal-actions {
   display: flex;
   justify-content: space-between;
   margin-top: 20px;
 }
 
-.modal-actions button {
+.upload-video-modal-actions button {
   padding: 10px 20px;
   cursor: pointer;
 }
 
 .progress-container {
+  width: 100%;
+  max-width: 400px;
+  margin: 20px auto;
+  padding: 10px 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
   margin-top: 20px;
+  flex-direction: column;
+}
+
+.progress-container .loading-bar {
+  height: 20px;
+  width: 80%;
+  background-color: #ddd;
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+.progress-container .loading-bar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: var(--progress, 0%);
+  background-color: #4CAF50;
+  transition: width 0.4s ease;
 }
 
 .success-message {
-  margin-top: 20px;
-  font-size: 18px;
+  background-color: #eaffea;
+  border: 1px solid #4CAF50;
+  border-radius: 4px;
+  padding: 10px;
+  font-size: 1rem;
   color: #4CAF50;
+  font-weight: bold;
+}
+
+.info-message {
+  text-align: center;
+  margin-top: 10px;
+  font-size: 1rem;
+  color: #0074cc;
+  background-color: #e6f3ff;
+  border: 1px solid #b3daff;
+  padding: 8px 12px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.error-message {
+  color: red;
+  margin-top: 10px;
+  font-size: 0.9rem;
+}
+
+.drag-drop-area {
+  border: 2px dashed rgb(55, 133, 255);;
+  border-radius: 8px;
+  padding: 30px;
+  text-align: center;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  margin-top: 20px;
+}
+
+.drag-drop-area.dragging {
+  background-color: #e6f3ff;
+  border-color: rgb(55, 103, 255);
+}
+
+.drag-drop-text {
+  color: #333;
+  font-size: 18px;
+}
+
+.file-name {
+  color: #333;
   font-weight: bold;
 }

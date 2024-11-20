@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
 import Modal from './Modal';
 import VideoUploadModal from './VideoUploadModal';
-import { jsPDF } from 'jspdf';
 import pdfIcon from '../assets/pdf.png';
 import AssignModal from './AssignModal';
+import { jsPDF } from 'jspdf';
+import { useParams, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faUserMd, faUserNurse, faCheckCircle, faExclamationCircle, faTimesCircle } from '@fortawesome/free-solid-svg-icons';
+import { faUserMd, faTimesCircle } from '@fortawesome/free-solid-svg-icons';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import './PatientDetails.css';
 
 const PatientDetails = () => {
@@ -21,17 +23,17 @@ const PatientDetails = () => {
   const authCredentials = localStorage.getItem('authCredentials');
   const navigate = useNavigate();
   const [doctors, setDoctors] = useState([]);
-  const [nurses, setNurses] = useState([]);
+  const [preReaders, setPreReaders] = useState([]);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [selectedEncounterId, setSelectedEncounterId] = useState(null);
   const [selectedDoctor, setSelectedDoctor] = useState('');
-  const [selectedNurse, setSelectedNurse] = useState('');   
-  const [assignedStaff, setAssignedStaff] = useState({ doctorId: null, nurseId: null });
+  const [selectedPreReader, setSelectedPreReader] = useState('');   
+  const [assignedStaff, setAssignedStaff] = useState({ doctorId: null, preReaderId: null });
   const [skipNextFetch, setSkipNextFetch] = useState(false);
+  const [selectedPreReaders, setSelectedPreReaders] = useState('');
   
   useEffect(() => {
     if (skipNextFetch) {
-      // Reset the flag and skip this fetch for assign icon to update instantly
       setSkipNextFetch(false);
       return;
     }
@@ -76,7 +78,6 @@ const PatientDetails = () => {
               const videoUploadedExtension = resource.extension && resource.extension.find(ext => ext.url === 'http://example.com/fhir/StructureDefinition/videoUploaded');
               const videoUploaded = videoUploadedExtension ? videoUploadedExtension.valueBoolean : false;
   
-              // Check for assigned participants
               const isAssigned = resource.participant && resource.participant.length > 0;
   
               return { 
@@ -86,7 +87,7 @@ const PatientDetails = () => {
                 date, 
                 videoUploaded, 
                 readEnabled: videoUploaded,
-                isAssigned // New property to indicate assigned participants
+                isAssigned
               };
             });
   
@@ -111,14 +112,14 @@ const PatientDetails = () => {
           .then((response) => response.json())
           .then((data) => setDoctors(data));
   
-        fetch(`${process.env.REACT_APP_API_URL}/api/users/nurses`, {
+        fetch(`${process.env.REACT_APP_API_URL}/api/users/prereaders`, {
           headers: {
             'Content-Type': 'application/json',
             'Authorization': authCredentials,
           },
         })
           .then((response) => response.json())
-          .then((data) => setNurses(data));
+          .then((data) => setPreReaders(data));
       } catch (error) {
         console.error('Error fetching patient or encounters:', error);
       }
@@ -127,123 +128,152 @@ const PatientDetails = () => {
     fetchPatientDetails();
   }, [patientId, skipNextFetch]);
 
+  const onClose = () => {
+    setSelectedDoctor("");
+    setSelectedPreReader("");
+    setShowAssignModal(false);
+  };  
   
-  
-  
+  const refreshVideos = async () => {
+    try {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/videos?encounterId=${selectedEncounterId}`, {
+        headers: { Authorization: authCredentials },
+      });
+      if (response.ok) {
+        const data = await response.json();
+      } else {
+        console.error("Failed to refresh videos:", response.status);
+      }
+    } catch (error) {
+      console.error("Error refreshing videos:", error);
+    }
+  };  
 
   const handleDoctorChange = (encounterId, practitionerId) => {
     updateEncounterParticipants(encounterId, practitionerId, "doctor");
   };
   
-  const handleNurseChange = (encounterId, practitionerId) => {
-    updateEncounterParticipants(encounterId, practitionerId, "nurse");
-  };  
-  
+  const handlePreReaderChange = (encounterId, practitionerId) => {
+    updateEncounterParticipants(encounterId, practitionerId, "prereader");
+  };
+
   const updateEncounterParticipants = async (encounterId, practitionerId, role) => {
-    try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/encounter/${encounterId}/addParticipant`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': authCredentials,
-        },
-        body: JSON.stringify({
-          practitionerId,
-          role,
-        }),
-      });
   
-      if (!response.ok) {
-        throw new Error(`Failed to update encounter: ${response.status}`);
-      }
+    try {
+      const response = await fetch(
+        `${process.env.REACT_APP_API_URL}/encounter/${encounterId}/addParticipant`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: authCredentials,
+          },
+          body: JSON.stringify({
+            practitionerId,
+            role,
+          }),
+        }
+      );
   
       return response;
     } catch (error) {
-      console.error("Error updating encounter:", error);
+      console.error(`Error updating ${role}:`, error);
       throw error;
     }
-  }; 
-
+  };
+  
   const handleAddEncounter = () => {
-    setLoading(true);
-
     const encounterData = {
-        resourceType: "Encounter",
-        subject: {
-            reference: `Patient/${patientId}`
+      resourceType: "Encounter",
+      subject: {
+        reference: `Patient/${patientId}`,
+      },
+      period: {
+        start: new Date(newEncounter.date).toISOString(),
+      },
+      reasonCode: [
+        {
+          text: newEncounter.description,
         },
-        period: {
-            start: new Date(newEncounter.date).toISOString()
-        },
-        reasonCode: [{
-            text: newEncounter.description
-        }],
-        status: newEncounter.status
+      ],
+      status: newEncounter.status,
     };
-
-    const optimisticEnc = {
-        id: `optimistic-${Date.now()}`,
-        description: newEncounter.description,
-        status: newEncounter.status,
-        date: new Date(newEncounter.date).toISOString(),
-        videoUploaded: false,
-        readEnabled: false
-    };
-
-    setEncounters(prevEncounters => [...prevEncounters, optimisticEnc]);
-
+  
     fetch(`${process.env.REACT_APP_API_URL}/encounter`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/fhir+json',
-            'Authorization': authCredentials,
-        },
-        body: JSON.stringify(encounterData),
+      method: "POST",
+      headers: {
+        "Content-Type": "application/fhir+json",
+        Authorization: authCredentials,
+      },
+      body: JSON.stringify(encounterData),
     })
-    .then(response => response.json())
-    .then(data => {
-        const createdEncounter = data;
-        setEncounters(prevEncounters => prevEncounters.map(enc =>
-            enc.id === optimisticEnc.id ? {
-                id: createdEncounter.id,
-                description: createdEncounter.reasonCode && createdEncounter.reasonCode[0] ? createdEncounter.reasonCode[0].text : 'No Description',
-                status: createdEncounter.status || 'No Status',
-                date: createdEncounter.period && createdEncounter.period.start ? createdEncounter.period.start : 'No Date',
-                videoUploaded: false,
-                readEnabled: false
-            } : enc
-        ));
-        setLoading(false);
+      .then((response) => response.json())
+      .then((data) => {
+        const newEncounterItem = {
+          id: data.id,
+          description: data.reasonCode?.[0]?.text || "No Description",
+          status: data.status || "No Status",
+          date: data.period?.start || "No Date",
+          videoUploaded: data.extension?.some(
+            (ext) =>
+              ext.url ===
+                "http://example.com/fhir/StructureDefinition/videoUploaded" &&
+              ext.valueBoolean
+          ),
+        };
+  
+        setEncounters((prevEncounters) => [...prevEncounters, newEncounterItem]);
+
+        toast.success("Encounter created successfully!", {
+          position: "top-right",
+          autoClose: 3000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+          progress: undefined,
+          theme: "colored",
+        });        
+  
+        setNewEncounter({ description: "", date: "", status: "planned" });
         setShowModal(false);
-        setNewEncounter({ description: '', date: '', status: 'planned' });
-    })
-    .catch(error => {
-        console.error('Error adding encounter:', error);
-        setEncounters(prevEncounters => prevEncounters.filter(enc => enc.id !== optimisticEnc.id));
-        setLoading(false);
-    });
-  };  
+      })
+      .catch((error) => {
+        console.error("Error adding encounter:", error);
+      });
+  };
 
   const handleUploadClick = (index) => {
     setSelectedEncounterIndex(index);
     setShowVideoModal(true);
   }; 
 
-  const handleUpload = async (file, setUploadProgress) => {
+  const handleUpload = (file, setUploadProgress, setUploadComplete) => {
     if (!file) {
-      alert('Please select a file to upload');
-      return;
+      alert("Please select a file to upload");
+      return null;
+    }    
+
+    const maxSize = 3 * 1024 * 1024 * 1024; // 2GB in bytes
+
+    if (file.size > maxSize) {
+      alert("The file is too large. Please upload a file smaller than 4GB.");
+      return null;
     }
   
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append("file", file);
     const encounterId = encounters[selectedEncounterIndex].id;
   
-    try {  
-      const xhr = new XMLHttpRequest();
-      xhr.open('POST', `${process.env.REACT_APP_API_URL}/upload?patientId=${patientId}&encounterId=${encounterId}`, true);
+    const xhr = new XMLHttpRequest(); // Create the XMLHttpRequest instance
   
-      xhr.setRequestHeader('Authorization', authCredentials);
+    try {
+      xhr.open(
+        "POST",
+        `${process.env.REACT_APP_API_URL}/upload?patientId=${patientId}&encounterId=${encounterId}`,
+        true
+      );
+      xhr.setRequestHeader("Authorization", authCredentials);
   
       xhr.upload.onprogress = (event) => {
         if (event.lengthComputable) {
@@ -255,37 +285,47 @@ const PatientDetails = () => {
       xhr.onload = () => {
         if (xhr.status === 200) {
           const data = JSON.parse(xhr.responseText);
-          console.log('Media created with ID =', data.id);
   
-          const videoUrl = `${process.env.REACT_APP_API_URL}/videos-bucket/${file.name}`;
-          
-          setEncounters(encounters.map((enc, i) => i === selectedEncounterIndex ? {
-            ...enc,
-            status: 'in-progress',
-            videoUploaded: true,
-            readEnabled: true,
-            videoUrl: videoUrl
-          } : enc));
-          setShowVideoModal(false);
-          setUploadProgress(0);
+          setEncounters(
+            encounters.map((enc, i) =>
+              i === selectedEncounterIndex
+                ? {
+                    ...enc,
+                    status: "in-progress",
+                    videoUploaded: true,
+                    readEnabled: true,
+                  }
+                : enc
+            )
+          );
+  
+          setUploadComplete(true);
+          setTimeout(() => {
+            setShowVideoModal(false);
+            setUploadProgress(0);
+            setUploadComplete(false);
+          }, 2000);
         } else {
-          alert('Error uploading file');
+          console.error("Error uploading file:", xhr.responseText);
+          alert("Error uploading file.");
           setUploadProgress(0);
         }
       };
   
       xhr.onerror = () => {
-        console.error('Error uploading video');
-        alert('Error uploading video');
+        console.error("Error uploading video");
+        alert("Error uploading video");
         setUploadProgress(0);
       };
   
-      xhr.send(formData);
+      xhr.send(formData); // Start the upload
     } catch (err) {
-      console.error('Error uploading video:', err);
-      alert('Error uploading video');
+      console.error("Error uploading video:", err);
+      alert("Error uploading video");
       setUploadProgress(0);
     }
+  
+    return xhr;
   };
 
   const handleReadClick = async (encounter) => {
@@ -318,11 +358,15 @@ const PatientDetails = () => {
       }
   
       const mediaId = mediaExtension.valueReference.reference.split('/')[1];
-      navigate(`/video/${encounter.id}/${mediaId}`);
+      navigate(`/video/${encounter.id}/${mediaId}`, {
+        state: {
+          encounterDescription: encounter.description,
+        },
+      });
     } catch (error) {
       console.error('Error fetching encounter details:', error);
     }
-  };  
+  };
   
   const getStatusColor = (status) => {
     switch(status) {
@@ -401,48 +445,7 @@ const PatientDetails = () => {
     } catch (error) {
       console.error('Error generating PDF:', error);
     }
-  };
-
-  // const openAssignModal = async (encounterId) => {
-  //   try {
-  //       setSelectedEncounterId(encounterId);
-  //       const response = await fetch(`${process.env.REACT_APP_API_URL}/encounter/${encounterId}`, {
-  //           headers: {
-  //               'Content-Type': 'application/json',
-  //               'Authorization': authCredentials,
-  //           },
-  //       });
-        
-  //       if (response.ok) {
-  //           const encounterData = await response.json();
-            
-  //           // Check if there are participants
-  //           if (encounterData.participant && encounterData.participant.length > 0) {
-  //               const doctor = encounterData.participant.find((p) => p.type && p.type[0].text === "Doctor");
-  //               const nurse = encounterData.participant.find((p) => p.type && p.type[0].text === "Nurse");
-
-  //               setAssignedStaff({
-  //                   doctorId: doctor ? doctor.individual.reference.split('/')[1] : null,
-  //                   nurseId: nurse ? nurse.individual.reference.split('/')[1] : null
-  //               });
-  //           } else {
-  //               // No participants assigned
-  //               setAssignedStaff({
-  //                   doctorId: null,
-  //                   nurseId: null,
-  //                   message: "No assigned staff yet"
-  //               });
-  //           }
-            
-
-  //           setShowAssignModal(true);
-  //       } else {
-  //           console.error("Failed to fetch encounter data:", response.status);
-  //       }
-  //   } catch (error) {
-  //       console.error("Error fetching assigned staff:", error);
-  //   }
-  // };
+  }; 
 
   const openAssignModal = async (encounterId) => {
     try {
@@ -460,28 +463,20 @@ const PatientDetails = () => {
         // Check if there are participants
         if (encounterData.participant && encounterData.participant.length > 0) {
           const doctor = encounterData.participant.find((p) => p.type && p.type[0].text === "Doctor");
-          const nurse = encounterData.participant.find((p) => p.type && p.type[0].text === "Nurse");
+          const preReader = encounterData.participant.find((p) => p.type && p.type[0].text === "PreReader");
   
           setAssignedStaff({
             doctorId: doctor ? doctor.individual.reference.split('/')[1] : null,
-            nurseId: nurse ? nurse.individual.reference.split('/')[1] : null
+            preReaderId: preReader ? preReader.individual.reference.split('/')[1] : null
           });
         } else {
           // No participants assigned
           setAssignedStaff({
             doctorId: null,
-            nurseId: null,
+            preReaderId: null,
             message: "No assigned staff yet"
           });
         }
-  
-        setEncounters((prevEncounters) =>
-          prevEncounters.map((enc) =>
-            enc.id === encounterId
-              ? { ...enc, isAssigned: assignedStaff.doctorId || assignedStaff.nurseId }
-              : enc
-          )
-        );
   
         setShowAssignModal(true);
       } else {
@@ -491,65 +486,46 @@ const PatientDetails = () => {
       console.error("Error fetching assigned staff:", error);
     }
   };
-  
 
-  // const closeAssignModal = () => {
-  //   setShowAssignModal(false);
-  //   setSelectedDoctor('');
-  //   setSelectedNurse('');
-  // };
-
-  const closeAssignModal = () => {
-    setShowAssignModal(false);
-    setSelectedDoctor('');
-    setSelectedNurse('');
+  const assignParticipants = async (doctor, preReader, encounterId) => {
   
-    // Update the encounter assignment status
-    setEncounters((prevEncounters) =>
-      prevEncounters.map((enc) =>
-        enc.id === selectedEncounterId
-          ? { ...enc, isAssigned: assignedStaff.doctorId || assignedStaff.nurseId }
-          : enc
-      )
-    );
+    try {
+      const doctorResponse = await updateEncounterParticipants(encounterId, doctor, "doctor");
+  
+      if (!doctorResponse.ok) {
+        console.error("Failed to assign doctor.", doctorResponse.statusText);
+        throw new Error("Failed to assign doctor.");
+      }
+  
+  
+      if (preReader) {
+        const preReaderResponse = await updateEncounterParticipants(encounterId, preReader, "preReader");
+  
+        if (!preReaderResponse.ok) {
+          console.error("Failed to assign preReader.", preReaderResponse.statusText);
+          throw new Error("Failed to assign preReader.");
+        }
+  
+      }
+    } catch (error) {
+      console.error("Error in assignParticipants:", error);
+      throw error;
+    }
   };
-  
 
-  // const handleAssignParticipants = async () => {
-  //   if (!selectedDoctor) {
-  //     alert("Please select a doctor.");
-  //     return;
-  //   }
-  
-  //   try {
-  //     const doctorResponse = await updateEncounterParticipants(selectedEncounterId, selectedDoctor, "doctor");
-      
-  //     if (doctorResponse.ok) {
-  //       console.log("Doctor assigned successfully.");
-  
-  //       if (selectedNurse) {
-  //         const nurseResponse = await updateEncounterParticipants(selectedEncounterId, selectedNurse, "nurse");
-  
-  //         if (nurseResponse.ok) {
-  //           console.log("Nurse assigned successfully.");
-  //         } else {
-  //           console.error("Failed to assign nurse:", nurseResponse.statusText);
-  //         }
-  //       }
-  //     } else {
-  //       console.error("Failed to assign doctor:", doctorResponse.statusText);
-  //     }
-  //   } catch (error) {
-  //     console.error("Error updating encounter:", error);
-  //   } finally {
-  //     closeAssignModal();
-  //   }
-  // };
-  
-  // This one updates the assign icon instantly
   const handleAssignParticipants = async () => {
+  
     if (!selectedDoctor) {
-      alert("Please select a doctor.");
+      toast.error("Please select a doctor.", {
+        position: "top-right",
+        autoClose: 3000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        progress: undefined,
+        theme: "colored",
+      });
       return;
     }
   
@@ -557,66 +533,251 @@ const PatientDetails = () => {
       const doctorResponse = await updateEncounterParticipants(selectedEncounterId, selectedDoctor, "doctor");
   
       if (doctorResponse.ok) {
-        if (selectedNurse) {
-          const nurseResponse = await updateEncounterParticipants(selectedEncounterId, selectedNurse, "nurse");
   
-          if (!nurseResponse.ok) {
-            console.error("Failed to assign nurse:", nurseResponse.statusText);
+        if (selectedPreReader) {
+          const preReaderResponse = await updateEncounterParticipants(selectedEncounterId, selectedPreReader, "preReader");
+  
+          if (preReaderResponse.ok) {
           }
         }
+
+        setEncounters((prevEncounters) =>
+          prevEncounters.map((encounter) =>
+            encounter.id === selectedEncounterId
+              ? { ...encounter, isAssigned: true }
+              : encounter
+          )
+        );
   
-        // Directly update the isAssigned property in the encounters list
-        setEncounters((prevEncounters) => {
-          const updatedEncounters = [...prevEncounters]; // Create a shallow copy
-          const encounterIndex = updatedEncounters.findIndex(enc => enc.id === selectedEncounterId);
-  
-          if (encounterIndex !== -1) {
-            updatedEncounters[encounterIndex] = {
-              ...updatedEncounters[encounterIndex],
-              isAssigned: true
-            };
-            console.log("Updated specific encounter with isAssigned:", updatedEncounters[encounterIndex]); // Confirm update
-          }
-  
-          return updatedEncounters; // Update the state
+        toast.success("Participants assigned successfully.", {
+          position: "top-right",
+          autoClose: 3000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+          progress: undefined,
+          theme: "colored",
         });
 
-              setSkipNextFetch(true); // Prevent immediate re-fetch
-
-  
+        onClose();
       } else {
-        console.error("Failed to assign doctor:", doctorResponse.statusText);
+        console.error("Failed to assign doctor.");
+        toast.error("Failed to assign doctor.", {
+          position: "top-right",
+          autoClose: 3000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+          progress: undefined,
+          theme: "colored",
+        });
       }
     } catch (error) {
       console.error("Error updating encounter:", error);
-    } finally {
-      // Slight delay to ensure state has updated before closing modal
-      setTimeout(() => closeAssignModal(), 100); // 100ms delay to ensure React picks up state update
+      toast.error("Failed to update participants.", {
+        position: "top-right",
+        autoClose: 3000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        progress: undefined,
+        theme: "colored",
+      });
+    }
+  };
+  
+  const handleChangeParticipants = async () => {
+  
+    if (!selectedDoctor) {
+      toast.error("Please select a doctor.", {
+        position: "top-right",
+        autoClose: 3000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        progress: undefined,
+        theme: "colored",
+      });
+
+      return;
+    }
+  
+    try {
+      const removeResponse = await fetch(
+        `${process.env.REACT_APP_API_URL}/encounter/${selectedEncounterId}/removeParticipants`,
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: authCredentials,
+          },
+        }
+      );
+  
+      if (!removeResponse.ok) {
+        console.error("Failed to remove participants:", removeResponse.statusText);
+        throw new Error("Failed to remove participants.");
+      }
+
+      await handleAssignParticipants();  
+
+      onClose();
+    } catch (error) {
+      console.error("Error changing participants:", error);  
+      toast.error("Failed to update participants.", {
+        position: "top-right",
+        autoClose: 3000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        progress: undefined,
+        theme: "colored",
+      });
+  
+      return;
     }
   };  
+
+  const validateParticipants = (selectedDoctor) => {
+    if (!selectedDoctor) {
+      toast.error("Please select a doctor.", {
+        position: "top-right",
+        autoClose: 3000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        progress: undefined,
+        theme: "colored",
+      });
+      return false;
+    }
+    return true;
+  };
 
   const hasAssignedStaff = (encounter) => {
     return encounter.participant && Array.isArray(encounter.participant) && encounter.participant.length > 0;
   };
 
+  const handleDeleteEncounter = async (encounterId) => {
+    try {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/encounter/${encounterId}`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": authCredentials,
+        },
+      });
+  
+      if (response.ok) {
+        toast.success("Encounter deleted successfully!", {
+          position: "top-right",
+          autoClose: 3000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+          theme: "colored",
+        });
+  
+        setEncounters((prevEncounters) =>
+          prevEncounters.filter((encounter) => encounter.id !== encounterId)
+        );
+      } else {
+        const errorText = await response.text();
+        console.error("Error deleting encounter:", errorText);
+        toast.error("Failed to delete the encounter. Please try again.", {
+          position: "top-right",
+          autoClose: 3000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+          theme: "colored",
+        });
+      }
+    } catch (error) {
+      console.error("Error deleting encounter:", error);
+      toast.error("An unexpected error occurred. Please try again.", {
+        position: "top-right",
+        autoClose: 3000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        theme: "colored",
+      });
+    }
+  };
+
+  const handleDeleteClick = (encounterId) => {
+    toast(
+      ({ closeToast }) => (
+        <div>
+          <p>
+            Are you sure you want to delete this encounter? This action cannot
+            be undone.
+          </p>
+          <div style={{ marginTop: "10px", display: "flex", gap: "10px" }}>
+            <button
+              className="btn btn-confirm"
+              onClick={async () => {
+                closeToast();
+                await confirmDelete(encounterId);
+              }}
+            >
+              Yes, Delete
+            </button>
+            <button className="btn btn-cancel" onClick={closeToast}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      ),
+      {
+        position: "top-center",
+        autoClose: false,
+        closeOnClick: false,
+        draggable: true,
+        theme: "colored",
+      }
+    );
+  };
+
+  const confirmDelete = async (encounterId) => {
+    try {
+      await handleDeleteEncounter(encounterId);
+    } catch (error) {
+      console.error("Error deleting encounter:", error);
+      toast.error("Failed to delete encounter.", {
+        position: "top-right",
+        autoClose: 3000,
+        theme: "colored",
+      });
+    }
+  };
+  
   return (
     <div>      
       <h1>{patient + ' ID(' + patientId + ')'}</h1>
-      <button onClick={() => setShowModal(true)}>Add Encounter</button>
+      <button onClick={() => setShowModal(true)}>New Encounter</button>
       {loading && <p>Loading...</p>}
       <button className="danger" onClick={() => navigate('/patients')}>Back</button>
       <table>
         <thead>
           <tr>
             <th>#</th>
-            <th>Encounter ID</th>
-            <th>Description</th>
-            <th>Status</th>
             <th>Date</th>
+            <th>Description</th>
+            <th>Status</th>            
             <th>Staff</th>
             <th>Video</th>
             <th>Reading</th>
-            <th>D-Report</th>
+            <th>Report</th>
           </tr>
         </thead>
         <tbody>
@@ -626,16 +787,10 @@ const PatientDetails = () => {
             </tr>
           ) : (
             encounters.map((encounter, index) => {
-              // Check if encounter has assigned staff
               const isAssigned = hasAssignedStaff(encounter);
               return (
                 <tr key={index} className="encounter-row">
                   <td>{index + 1}</td>
-                  <td>{encounter.id}</td>
-                  <td>{encounter.description}</td>
-                  <td style={{ backgroundColor: getStatusColor(encounter.status) }}>
-                    {encounter.status}
-                  </td>
                   <td>
                     {new Date(encounter.date).toLocaleString("en-GB", {
                       day: "2-digit",
@@ -644,8 +799,24 @@ const PatientDetails = () => {
                       hour: "2-digit",
                       minute: "2-digit",
                       hour12: true,
-                    })}
+                    })}{" "}
+                    /{" "}
+                    <button
+                      className="delete-btn"
+                      style={{ marginLeft: "8px" }}
+                      onClick={() => handleDeleteClick(encounter.id)}
+                    >
+                      Delete
+                    </button>
                   </td>
+                  <td>
+                    <div className="multi-line-text">
+                      {encounter.description}
+                    </div>
+                  </td>
+                  <td style={{ backgroundColor: getStatusColor(encounter.status) }}>
+                    {encounter.status}
+                  </td>                  
                   <td>
                     <button onClick={() => openAssignModal(encounter.id)}>Assign</button>
                     <span style={{ marginLeft: "8px" }}>
@@ -668,7 +839,7 @@ const PatientDetails = () => {
                   <td>
                     {encounter.readEnabled ? (
                       <button onClick={() => handleReadClick(encounter)}>
-                        {encounter.status === "finished" ? "Review" : "Read"}
+                        {encounter.status === "finished" ? "View" : "Read"}
                       </button>
                     ) : (
                       <button disabled>Read</button>
@@ -700,32 +871,21 @@ const PatientDetails = () => {
         show={showVideoModal}
         handleClose={() => setShowVideoModal(false)}
         handleUpload={handleUpload}
-      />
-      {/* <AssignModal
-        show={showAssignModal}
-        onClose={closeAssignModal}
-        doctors={doctors}
-        nurses={nurses}
-        selectedDoctor={selectedDoctor}
-        setSelectedDoctor={setSelectedDoctor}
-        selectedNurse={selectedNurse}
-        setSelectedNurse={setSelectedNurse}
-        assignedStaff={assignedStaff}
-        handleAssignParticipants={handleAssignParticipants}
-      />       */}
+      />     
       <AssignModal
         show={showAssignModal}
-        onClose={closeAssignModal}
+        onClose={onClose}
         doctors={doctors}
-        nurses={nurses}
+        preReaders={preReaders}
         selectedDoctor={selectedDoctor}
         setSelectedDoctor={setSelectedDoctor}
-        selectedNurse={selectedNurse}
-        setSelectedNurse={setSelectedNurse}
+        selectedPreReader={selectedPreReader}
+        setSelectedPreReader={setSelectedPreReader}
         assignedStaff={assignedStaff}
         handleAssignParticipants={handleAssignParticipants}
+        handleChangeParticipants={handleChangeParticipants}
       />
-
+      <ToastContainer />
     </div>
   );
 };

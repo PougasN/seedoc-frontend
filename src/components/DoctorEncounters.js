@@ -6,27 +6,26 @@ import VideoUploadModal from './VideoUploadModal';
 import './DoctorEncounters.css';
 
 const DoctorEncounters = () => {
-  const [encounters, setEncounters] = useState([]);
-  const authCredentials = localStorage.getItem('authCredentials');
-  const practitionerId = localStorage.getItem('practitionerId');
-  const navigate = useNavigate();
+  const [encounters, setEncounters] = useState([]);  
   const [selectedEncounterIndex, setSelectedEncounterIndex] = useState(null);
-  const [showVideoModal, setShowVideoModal] = useState(false);
-  const role = localStorage.getItem('userRole'); // Get user role from localStorage
-  const userName = localStorage.getItem('userName');
-  const [isPreRead, setIsPreRead] = useState('0');
+  const [showVideoModal, setShowVideoModal] = useState(false);  
   const [filteredEncounters, setFilteredEncounters] = useState([]);
   const [filter, setFilter] = useState('all');
   const [counts, setCounts] = useState({ pending: 0, completed: 0, all: 0 });
-
+  const authCredentials = localStorage.getItem('authCredentials');
+  const practitionerId = localStorage.getItem('practitionerId');
+  const role = localStorage.getItem('userRole');
+  const userName = localStorage.getItem('userName');
+  const navigate = useNavigate();
 
   useEffect(() => {
+
     const fetchEncounters = async () => {
       if (!practitionerId) {
         console.error('No practitioner ID found for doctor.');
         return;
       }
-
+    
       try {
         const response = await fetch(
           `${process.env.REACT_APP_API_URL}/practitioner/${practitionerId}/encounters`,
@@ -37,44 +36,52 @@ const DoctorEncounters = () => {
             },
           }
         );
-
+    
         if (response.ok) {
           const data = await response.json();
           const encountersWithPatientId = (data.entry || []).map(entry => {
             const encounter = entry.resource;
-            const patientId = encounter.subject?.reference?.split('/')[1] || 'Unknown';
-            const id = encounter.id;
-            const description = encounter.reasonCode && encounter.reasonCode[0] ? encounter.reasonCode[0].text : 'No Description';
-            const status = encounter.status || 'Unknown';
-            const date = encounter.period && encounter.period.start ? new Date(encounter.period.start).toLocaleString() : 'No Date';
-
-            const videoUploadedExtension = encounter.extension && encounter.extension.find(ext => ext.url === 'http://example.com/fhir/StructureDefinition/videoUploaded');
-            const videoUploaded = videoUploadedExtension ? videoUploadedExtension.valueBoolean : false;
-
-            // Check for the nursePreReadStatus extension
-            const nursePreReadStatusExtension = encounter.extension?.find(
-              ext => ext.url === 'http://example.com/fhir/StructureDefinition/nursePreReadStatus'
+    
+            // Check if a preReader is assigned
+            const preReaderAssigned = encounter.participant?.some(participant => {
+              return participant.type?.some(type => type.text === "PreReader");
+            });
+    
+            // Check for pre-reading status
+            const preReaderPreReadStatusExtension = encounter.extension?.find(
+              ext => ext.url === 'http://example.com/fhir/StructureDefinition/PreReadStatus'
             );
-            const isPreRead = nursePreReadStatusExtension ? nursePreReadStatusExtension.valueBoolean : false;
-            
-
+            const isPreRead = preReaderPreReadStatusExtension ? preReaderPreReadStatusExtension.valueBoolean : false;
+    
+            // Determine the pre-reading state
+            let preReadingState = "unassigned";
+            if (preReaderAssigned) {
+              preReadingState = isPreRead ? "finished" : "pending";
+            }
+    
             return {
-              id,
-              description,
-              status,
-              date,
-              patientId,
-              videoUploaded, 
-              readEnabled: videoUploaded,
+              id: encounter.id,
+              description: encounter.reasonCode?.[0]?.text || 'No Description',
+              status: encounter.status || 'Unknown',
+              date: encounter.period?.start
+                ? new Date(encounter.period.start).toLocaleString()
+                : 'No Date',
+              patientId: encounter.subject?.reference?.split('/')[1] || 'Unknown',
+              videoUploaded: encounter.extension?.some(
+                ext => ext.url === 'http://example.com/fhir/StructureDefinition/videoUploaded' && ext.valueBoolean
+              ),
+              readEnabled: encounter.extension?.some(
+                ext => ext.url === 'http://example.com/fhir/StructureDefinition/videoUploaded' && ext.valueBoolean
+              ),
               isPreRead,
-
+              preReadingState,
             };
           });
-
+    
           setEncounters(encountersWithPatientId);
           updateCounts(encountersWithPatientId);
           setFilteredEncounters(encountersWithPatientId);
-
+    
         } else if (response.status === 401) {
           alert('Unauthorized access. Please log in again.');
           navigate('/login');
@@ -87,6 +94,7 @@ const DoctorEncounters = () => {
     };
 
     fetchEncounters();
+    
     handleFilter(filter);
   }, [practitionerId, authCredentials, navigate]);
 
@@ -180,7 +188,7 @@ const DoctorEncounters = () => {
             };
           });
         });
-  
+
         await Promise.all(imagePromises);
       }
   
@@ -208,22 +216,33 @@ const DoctorEncounters = () => {
     setShowVideoModal(true);
   };
 
-  const handleUpload = async (file, setUploadProgress) => {
+  const handleUpload = (file, setUploadProgress, setUploadComplete) => {
     if (!file) {
-      alert('Please select a file to upload');
-      return;
+      alert("Please select a file to upload");
+      return null;
     }
+  
+    const maxSize = 3 * 1024 * 1024 * 1024; // 2GB in bytes
 
+    if (file.size > maxSize) {
+      alert("The file is too large. Please upload a file smaller than 2GB.");
+      return null;
+    }
+  
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append("file", file);
     const encounterId = encounters[selectedEncounterIndex].id;
     const patientId = encounters[selectedEncounterIndex].patientId;
-
-    try {  
-      const xhr = new XMLHttpRequest();
-      xhr.open('POST', `${process.env.REACT_APP_API_URL}/upload?patientId=${patientId}&encounterId=${encounterId}`, true);
   
-      xhr.setRequestHeader('Authorization', authCredentials);
+    const xhr = new XMLHttpRequest(); // Create the XMLHttpRequest instance
+  
+    try {
+      xhr.open(
+        "POST",
+        `${process.env.REACT_APP_API_URL}/upload?patientId=${patientId}&encounterId=${encounterId}`,
+        true
+      );
+      xhr.setRequestHeader("Authorization", authCredentials);
   
       xhr.upload.onprogress = (event) => {
         if (event.lengthComputable) {
@@ -235,46 +254,54 @@ const DoctorEncounters = () => {
       xhr.onload = () => {
         if (xhr.status === 200) {
           const data = JSON.parse(xhr.responseText);
-          console.log('Media created with ID =', data.id);
-  
-          const videoUrl = `${process.env.REACT_APP_API_URL}/videos-bucket/${file.name}`;
-          
-          // Update the specific encounter in `encounters`
-          const updatedEncounters = encounters.map((enc, i) => 
-            i === selectedEncounterIndex 
-              ? { ...enc, status: 'in-progress', videoUploaded: true, readEnabled: true, videoUrl } 
+          console.log("Media created with ID =", data.id);
+          const updatedEncounters = encounters.map((enc, i) =>
+            i === selectedEncounterIndex
+              ? {
+                  ...enc,
+                  status: "in-progress",
+                  videoUploaded: true,
+                  readEnabled: true,
+                }
               : enc
           );
           setEncounters(updatedEncounters);
-
-          // Apply the current filter to update filteredEncounters directly
-          setFilteredEncounters(updatedEncounters.filter(enc => {
-            if (filter === 'pending') return enc.status !== 'finished';
-            if (filter === 'completed') return enc.status === 'finished';
-            return true;
-          }));
-
-          setShowVideoModal(false);
-          setUploadProgress(0);
+          setFilteredEncounters(
+            updatedEncounters.filter((enc) => {
+              if (filter === "pending") return enc.status !== "finished";
+              if (filter === "completed") return enc.status === "finished";
+              return true;
+            })
+          );  
+          setUploadComplete(true);
+          setTimeout(() => {
+            setShowVideoModal(false);
+            setUploadProgress(0);
+            setUploadComplete(false);
+          }, 2000);
         } else {
-          alert('Error uploading file');
+          console.error("Error uploading file:", xhr.responseText);
+          alert("Error uploading file.");
           setUploadProgress(0);
         }
       };
   
       xhr.onerror = () => {
-        console.error('Error uploading video');
-        alert('Error uploading video');
+        console.error("Error uploading video");
+        alert("Error uploading video");
         setUploadProgress(0);
       };
   
-      xhr.send(formData);
+      xhr.send(formData); // Start the upload
     } catch (err) {
-      console.error('Error uploading video:', err);
-      alert('Error uploading video');
+      console.error("Error uploading video:", err);
+      alert("Error uploading video");
       setUploadProgress(0);
     }
+  
+    return xhr; // Return the xhr object so it can be canceled
   };
+  
 
   const handleFilter = (status) => {
     setFilter(status);
@@ -284,7 +311,7 @@ const DoctorEncounters = () => {
     } else if (status === 'completed') {
       setFilteredEncounters(encounters.filter(enc => enc.status === 'finished'));
     } else {
-      setFilteredEncounters(encounters); // Show all encounters
+      setFilteredEncounters(encounters);
     }
   };
 
@@ -300,26 +327,23 @@ const DoctorEncounters = () => {
 
   return (
     <div>      
-      <h1>{`${role === 'ROLE_DOCTOR' ? 'Dr.' : 'Nr.'} ${userName}'s Encounters`}</h1>
+      <h1>{`${role === 'ROLE_DOCTOR' ? 'Dr.' : 'Pr.'} ${userName}'s Encounters`}</h1>
       <div>
         <button onClick={() => handleFilter('pending')}>Pending Review ({counts.pending})</button>
         <button onClick={() => handleFilter('completed')}>Completed ({counts.completed})</button>
         <button onClick={() => handleFilter('all')}>All ({counts.all})</button>
       </div>
-
       <table>
         <thead>
           <tr>
             <th>#</th>
-            {/* <th>Encounter ID</th>
-            <th>Patient ID</th> */}
-            <th>Description</th>
-            <th>Status</th>
             <th>Date</th>
-            {/* <th>Video</th> */}
+            <th>Description</th>
+            <th>Status</th>            
             {role === 'ROLE_DOCTOR' && <th>Video</th>}
+            {role === 'ROLE_DOCTOR' && <th>Pre-Reading</th>}
             <th>Reading</th>
-            <th>D-Report</th>
+            <th>Report</th>
           </tr>
         </thead>
         <tbody>
@@ -331,13 +355,29 @@ const DoctorEncounters = () => {
             filteredEncounters.map((encounter, index) => (
               <tr key={encounter.id}>
                 <td>{index + 1}</td>
-                {/* <td>{encounter.id}</td>
-                <td>{encounter.patientId}</td> */}
+                <td>
+                  {encounter.date && new Date(encounter.date).toString() !== "Invalid Date"
+                    ? new Date(encounter.date).toLocaleString("en-GB", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        hour12: true,
+                      })
+                    : new Date().toLocaleString("en-GB", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        hour12: true,
+                      })}
+                </td>
                 <td>{encounter.description}</td>
                 <td style={{ backgroundColor: getStatusColor(encounter.status) }}>
                   {encounter.status}
-                </td>
-                <td>{encounter.date}</td>                
+                </td>                                
                 {role === 'ROLE_DOCTOR' && (
                   <td>
                     {encounter.videoUploaded ? (
@@ -349,40 +389,31 @@ const DoctorEncounters = () => {
                     )}
                   </td>
                 )}
-                {/* <td>
-                  {encounter.readEnabled ? (
-                    <button onClick={() => handleReadClick(encounter)}>
-                      {role === "ROLE_DOCTOR"
-                        ? encounter.status === "finished"
-                          ? "Review"
-                          : "Reading"
-                        : encounter.isPreRead || encounter.status === "finished"
-                          ? "Review"
-                          : "PreReading"}
-                    </button>
-      
-                  ) : (
-                    <button disabled>{role === "ROLE_DOCTOR" ? "Reading" : "PreReading"}</button>
-                  )}
-                </td> */}
+                {role === 'ROLE_DOCTOR' && (
+            <td>
+              {encounter.preReadingState === "unassigned" && <span>Unassigned</span>}
+              {encounter.preReadingState === "pending" && <span style={{ color: 'orange' }}>Pending</span>}
+              {encounter.preReadingState === "finished" && <span style={{ color: 'green' }}>Finished</span>}
+            </td>
+          )}                
                 <td>
                   {encounter.readEnabled ? (
                     <div style={{ display: 'flex', alignItems: 'center' }}>
                       <button onClick={() => handleReadClick(encounter)}>
                         {role === "ROLE_DOCTOR"
                           ? encounter.status === "finished"
-                            ? "Review"
+                            ? "View"
                             : "Reading"
                           : encounter.isPreRead || encounter.status === "finished"
-                            ? "Review"
-                            : "PreReading"}
+                            ? "View"
+                            : "Pre-Reading"}
                       </button>
                       {role === "ROLE_DOCTOR" && encounter.isPreRead && (
-                        <span title='PreReading Done'> ✅ </span>
+                        <span title='Pre-Reading Done'> ✅ </span>
                       )}
                     </div>
                   ) : (
-                    <button disabled>{role === "ROLE_DOCTOR" ? "Reading" : "PreReading"}</button>
+                    <button disabled>{role === "ROLE_DOCTOR" ? "Reading" : "Pre-Reading"}</button>
                   )}
                 </td>
                 <td>

@@ -4,12 +4,12 @@ import { faFileWaveform, faSave } from '@fortawesome/free-solid-svg-icons';
 import { useNavigate } from 'react-router-dom';
 import './Sidebar.css';
 
-const Sidebar = ({ isOpen, toggleSidebar, encounterId, mediaId, patientId, name, surname, birthdate, gender, encounterStatus, showReportModalHandler, role }) => {
+const Sidebar = ({ isOpen, toggleSidebar, encounterDesc, encounterId, mediaId, patientId, name, surname, birthdate, gender, encounterStatus, showReportModalHandler, role }) => {
+  
   const [isPreRead, setIsPreRead] = useState(false);
   const authCredentials = localStorage.getItem('authCredentials');
   const navigate = useNavigate();
 
-  // Fetch the pre-read status from the backend
   useEffect(() => {
     const fetchPreReadStatus = async () => {
       try {
@@ -21,7 +21,7 @@ const Sidebar = ({ isOpen, toggleSidebar, encounterId, mediaId, patientId, name,
         });
         const encounterData = await response.json();
         const preReadExtension = encounterData.extension?.find(
-          (ext) => ext.url === 'http://example.com/fhir/StructureDefinition/nursePreReadStatus'
+          (ext) => ext.url === 'http://example.com/fhir/StructureDefinition/PreReadStatus'
         );
         setIsPreRead(preReadExtension?.valueBoolean || false);
       } catch (error) {
@@ -29,7 +29,7 @@ const Sidebar = ({ isOpen, toggleSidebar, encounterId, mediaId, patientId, name,
       }
     };
 
-    if (encounterId && role === 'ROLE_NURSE') {
+    if (encounterId && role === 'ROLE_PREREADER') {
       fetchPreReadStatus();
     }
   }, [encounterId, role]);
@@ -37,19 +37,19 @@ const Sidebar = ({ isOpen, toggleSidebar, encounterId, mediaId, patientId, name,
   const savePreReading = async () => {
     try {
       const response = await fetch(
-        `${process.env.REACT_APP_API_URL}/${encounterId}/nursePreRead`,
+        `${process.env.REACT_APP_API_URL}/${encounterId}/PreRead`,
         {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': authCredentials,
           },
-          body: JSON.stringify({ nursePreReadStatus: true }),
+          body: JSON.stringify({ PreReadStatus: true }),
         }
       );
       if (response.ok) {
         setIsPreRead(true);
-        navigate(-1); // Redirect back to encounters list
+        navigate(-1);
       } else {
         console.error("Failed to save pre-reading:", response.status);
       }
@@ -61,7 +61,6 @@ const Sidebar = ({ isOpen, toggleSidebar, encounterId, mediaId, patientId, name,
   return (
     <div className={`sidebar ${isOpen ? 'open' : ''}`}>
       <button className="close-btn" onClick={toggleSidebar}>✖</button>
-
       <h2>Video Details</h2>
       <div className="info-grid">
         <p className="label">Encounter ID:</p>
@@ -69,7 +68,6 @@ const Sidebar = ({ isOpen, toggleSidebar, encounterId, mediaId, patientId, name,
         <p className="label">Media ID:</p>
         <p className="value">{mediaId}</p>
       </div>
-
       <h2>Patient Details</h2>
       <div className="info-grid">
         <p className="label">Patient ID:</p>
@@ -81,7 +79,11 @@ const Sidebar = ({ isOpen, toggleSidebar, encounterId, mediaId, patientId, name,
         <p className="label">Gender:</p>
         <p className="value">{gender}</p>
       </div>
-
+      <h2>Encounter Details</h2>
+        <div className='encounter-description'>
+          <p className="label">Encounter Description:</p>
+          <p className="value">{encounterDesc}</p>
+        </div>
       {role === "ROLE_DOCTOR" ? (
         encounterStatus !== 'finished' ? (
           <div title="Final Report" className="overlay-report-button" onClick={showReportModalHandler}>
@@ -94,18 +96,25 @@ const Sidebar = ({ isOpen, toggleSidebar, encounterId, mediaId, patientId, name,
             <FontAwesomeIcon icon={faFileWaveform} />
           </div>
         )
-      ) : role === "ROLE_NURSE" ? (
-          isPreRead === true ? (
-            <div title={isPreRead ? "Review" : "Save PreReading"} className={`overlay-report-button ${isPreRead ? 'faded' : ''}`} onClick={!isPreRead ? savePreReading : null}>
-              <span className="report-text">Save</span>
-              <FontAwesomeIcon icon={faFileWaveform} />
-            </div>
-          ) : (
-            <div title={isPreRead ? "Review" : "Save PreReading"} className={`overlay-report-button ${isPreRead ? 'faded' : ''}`} onClick={!isPreRead ? savePreReading : null}>
-              <span className="report-text">Save</span>
-              <FontAwesomeIcon icon={faFileWaveform} />
-            </div>
-          )     
+      ) : role === "ROLE_PREREADER" ? (
+        isPreRead === true || encounterStatus === "finished" ? (
+          <div 
+            title={isPreRead || encounterStatus === "finished" ? "View" : "Save Pre-Reading"} 
+            className={`overlay-report-button faded`}
+          >
+            <span className="report-text">Save</span>
+            <FontAwesomeIcon icon={faFileWaveform} />
+          </div>
+        ) : (
+          <div 
+            title={isPreRead || encounterStatus === "finished" ? "View" : "Save Pre-Reading"} 
+            className={`overlay-report-button`}
+            onClick={!isPreRead && encounterStatus !== "finished" ? savePreReading : null}
+          >
+            <span className="report-text">Save</span>
+            <FontAwesomeIcon icon={faFileWaveform} />
+          </div>
+        )
       ) : null}
     </div>
   );

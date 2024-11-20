@@ -1,7 +1,27 @@
-// NewUserModal.js
-import React from 'react';
+import React, { useState } from 'react';
 
 const NewUserModal = ({ show, handleClose, handleSave, newUser, setNewUser }) => {
+
+  const [userError, setUserError] = useState(false);
+
+  const validateAndSave = () => {
+    if (newUser) {
+      if (
+        !newUser.username ||
+        !newUser.password ||
+        !newUser.role
+      ) {
+        setUserError(true);
+        return;
+      }
+      setUserError(false);    
+    } else {
+      console.error("Modal is opened without valid data newUser.");
+      return;
+    }  
+    handleSave();
+  };
+
   if (!show) return null;
 
   const handleChange = (e) => {
@@ -34,10 +54,11 @@ const NewUserModal = ({ show, handleClose, handleSave, newUser, setNewUser }) =>
           <option value="">Select Role</option>
           <option value="ADMIN">ADMIN</option>
           <option value="DOCTOR">DOCTOR</option>
-          <option value="NURSE">NURSE</option>
+          <option value="PREREADER">PRE-READER</option>
         </select>
+        {userError && <p className="error-message">Please fill all the fields.</p>}
         <div className="modal-actions">
-          <button onClick={handleSave}>Save</button>
+          <button onClick={validateAndSave}>Save</button>
           <button onClick={handleClose}>Cancel</button>
         </div>
       </div>

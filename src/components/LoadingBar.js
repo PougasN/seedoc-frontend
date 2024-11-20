@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import './LoadingBar.css';  // Create a CSS file for styling
+import './LoadingBar.css';
 
 const LoadingBar = ({ progress }) => {
   return (

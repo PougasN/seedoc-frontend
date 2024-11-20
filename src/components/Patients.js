@@ -1,25 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import Modal from './Modal';
 import NewUserModal from './NewUserModal';
+import { useNavigate } from 'react-router-dom';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import './Patients.css';
 
 const Patients = () => {
-  const [patients, setPatients] = useState([]);
+  const [patients, setPatients] = useState([]);  
+  const [searchText, setSearchText] = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);  
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [newUser, setNewUser] = useState({ username: '', password: '', role: '' });
   const [newPatient, setNewPatient] = useState({
     givenName: '',
     familyName: '',
     gender: '',
     birthDate: ''
   });
-  const [searchText, setSearchText] = useState('');
-  const [showModal, setShowModal] = useState(false);
-  const navigate = useNavigate();
-  const [currentPage, setCurrentPage] = useState(1);
-  const patientsPerPage = 10; // Set the number of patients per page
+  const patientsPerPage = 50;
   const authCredentials = localStorage.getItem('authCredentials');
-  const [showUserModal, setShowUserModal] = useState(false);
-  const [newUser, setNewUser] = useState({ username: '', password: '', role: '' });
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchPatients = async () => {        
@@ -27,20 +29,33 @@ const Patients = () => {
         const response = await fetch(`${process.env.REACT_APP_API_URL}/patients`, {
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': authCredentials, // Use stored credentials
+            'Authorization': authCredentials,
           },
         });  
+  
         if (response.ok) {
           const data = await response.json();
           if (data.entry) {
             const patientNames = data.entry.map(entry => {
-              const name = entry.resource.name[0];
+              const patient = entry.resource;
+              const name = patient.name[0];
+              const givenName = name.given.join(' ').toUpperCase();
+              const familyName = name.family.toUpperCase();
+  
+              // Extract registration date from the created extension
+              const createdExtension = patient.meta.extension?.find(
+                (ext) => ext.url === "http://example.org/fhir/StructureDefinition/created"
+              );
+              const registrationDate = createdExtension ? createdExtension.valueDateTime : null;
+  
               return {
-                fullName: `${name.given.join(' ')} ${name.family}`,
-                familyName: name.family,
-                birthDate: entry.resource.birthDate,
-                gender: entry.resource.gender,
-                id: entry.resource.id,
+                givenName,
+                familyName,
+                fullName: `${givenName} ${familyName}`,
+                birthDate: patient.birthDate,
+                gender: patient.gender,
+                id: patient.id,
+                registrationDate,
               };
             });
             setPatients(patientNames);
@@ -59,60 +74,92 @@ const Patients = () => {
     };
   
     fetchPatients();
-  }, []);
-  
-
-  const handleAddPatient = () => {
-    const patientData = {
-      resourceType: "Patient",
-      identifier: [{
-        system: "http://hospital.smarthealthit.org",
-        value: "12345"
-      }],
-      name: [{
-        use: "official",
-        family: newPatient.familyName,
-        given: [newPatient.givenName]
-      }],
-      gender: newPatient.gender,
-      birthDate: newPatient.birthDate
-    };
-
-    fetch(`${process.env.REACT_APP_API_URL}/patient`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/fhir+json',
-        'Authorization': authCredentials,
-      },
-      body: JSON.stringify(patientData),
-    })
-      .then(response => response.json())
-      .then(data => {
-        const name = data.name[0];
-        setPatients([...patients, {
-          fullName: `${name.given.join(' ')} ${name.family}`,
-          familyName: name.family,
-          birthDate: data.birthDate,
-          gender: data.gender,
-          id: data.id
-        }]);
-        setShowModal(false);
-        setNewPatient({ givenName: '', familyName: '', gender: '', birthDate: '' });
-      })
-      .catch(error => console.error('Error adding patient:', error));
-  };  
+  }, []);  
 
   const handlePatientClick = (id) => {
     navigate(`/patient/${id}`);
   };
 
-  const filteredPatients = patients.filter(patient =>
-    patient.familyName?.toLowerCase().startsWith(searchText.toLowerCase())
-  );
+  const handleAddPatient = () => {
+    const patientData = {
+      resourceType: "Patient",
+      identifier: [
+        {
+          system: "http://hospital.smarthealthit.org",
+          value: "12345",
+        },
+      ],
+      name: [
+        {
+          use: "official",
+          family: newPatient.familyName.toUpperCase(),
+          given: [newPatient.givenName.toUpperCase()],
+        },
+      ],
+      gender: newPatient.gender,
+      birthDate: newPatient.birthDate,
+    };
+  
+    fetch(`${process.env.REACT_APP_API_URL}/patient`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/fhir+json",
+        Authorization: authCredentials,
+      },
+      body: JSON.stringify(patientData),
+    })
+      .then((response) => response.json())
+      .then((data) => {
+        const name = data.name[0];
+  
+        // Extract the created extension for the registration date
+        const createdExtension = data.meta.extension?.find(
+          (ext) => ext.url === "http://example.org/fhir/StructureDefinition/created"
+        );
+        const registrationDate = createdExtension ? createdExtension.valueDateTime : null;
+  
+        // Add the new patient with the registration date
+        setPatients([
+          ...patients,
+          {
+            fullName: `${name.given.join(" ")} ${name.family}`,
+            familyName: name.family.toUpperCase(),
+            birthDate: data.birthDate,
+            gender: data.gender,
+            id: data.id,
+            registrationDate, // Include the registration date
+          },
+        ]);
+        
+        toast.success("Patient registered successfully!", {
+          position: "top-right",
+          autoClose: 3000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+          progress: undefined,
+          theme: "colored",
+        });        
+
+        setShowModal(false);
+        setNewPatient({ givenName: "", familyName: "", gender: "", birthDate: "" });
+      })
+      .catch((error) => console.error("Error adding patient:", error));
+  };  
+
+  const filteredPatients = patients.filter(patient => {
+    const givenName = patient.givenName?.toLowerCase() || '';
+    const familyName = patient.familyName?.toLowerCase() || '';
+    const search = searchText.toLowerCase();
+  
+    return givenName.startsWith(search) || familyName.startsWith(search);
+  }); 
 
   const indexOfLastPatient = currentPage * patientsPerPage;
   const indexOfFirstPatient = indexOfLastPatient - patientsPerPage;
   const currentPatients = filteredPatients.slice(indexOfFirstPatient, indexOfLastPatient);
+
   const totalPages = Math.ceil(filteredPatients.length / patientsPerPage);
 
   const handleNextPage = () => {
@@ -123,15 +170,9 @@ const Patients = () => {
     if (currentPage > 1) setCurrentPage(currentPage - 1);
   };
 
-  const handleSaveUser = async () => {
-    // Ensure all fields are filled
-    if (!newUser.username || !newUser.password || !newUser.role) {
-      alert("Please fill in all fields.");
-      return;
-    }
+  const handleSaveUser = async () => {    
 
     try {
-      // Retrieve Basic Auth credentials for admin access from localStorage (or set up as needed)
       const adminAuthCredentials = localStorage.getItem('authCredentials');
 
       const response = await fetch(`${process.env.REACT_APP_API_URL}/api/auth/register`, {
@@ -144,11 +185,41 @@ const Patients = () => {
       });
 
       if (response.ok) {
-        alert('User registered successfully!');
-        setShowUserModal(false); // Close the modal
-        setNewUser({ username: '', password: '', role: '' }); // Reset form
+        toast.success("User created successfully!", {
+          position: "top-right",
+          autoClose: 3000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+          progress: undefined,
+          theme: "colored",
+        });
+        
+        setShowUserModal(false);
+        setNewUser({ username: '', password: '', role: '' });
       } else if (response.status === 401) {
-        alert('Unauthorized. Please check admin credentials.');
+          toast.error("Unauthorized Access!", {
+            position: "top-right",
+            autoClose: 3000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+            draggable: true,
+            progress: undefined,
+            theme: "colored",
+          });
+      } else if (response.status === 400) {
+          toast.error("Username already exists!", {
+            position: "top-right",
+            autoClose: 3000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+            draggable: true,
+            progress: undefined,
+            theme: "colored",
+          });
       } else {
         alert(`Error: ${response.statusText}`);
       }
@@ -156,88 +227,90 @@ const Patients = () => {
       console.error('Error registering user:', error);
       alert('An error occurred during registration.');
     }
-  };
-  
+  };  
 
   return (
     <div className="patients-container">
-  <h1>Patients</h1>
-
-  <div className="controls-container">
-    <button onClick={() => setShowModal(true)}>Add Patient</button>
-    <input
-      type="text"
-      className="search-input"
-      placeholder="Search by surname"
-      value={searchText}
-      onChange={(e) => setSearchText(e.target.value)}
-    />
-    <div className="right-buttons">
-      <button className="users-list" onClick={() => navigate('/user-management')}>
-        Users
-      </button>
-      <button className="create-new-user" onClick={() => setShowUserModal(true)}>
-        Create New User
-      </button>
+      <h1>Patients</h1>
+      <div className="controls-container">
+        <button onClick={() => setShowModal(true)}>New Patient</button>
+        <input
+          type="text"
+          className="search-input"
+          placeholder="Search by first or last name"
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+        />
+        <div className="right-buttons">
+          <button className="users-list" onClick={() => navigate('/user-management')}>
+            Users
+          </button>
+          <button className="create-new-user" onClick={() => setShowUserModal(true)}>
+            Create New User
+          </button>
+        </div>
+        </div>  
+          <table className="patients-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Full Name</th>
+                <th>Birth Date</th>
+                <th>Gender</th>                
+                <th>Registration Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredPatients.length === 0 ? (
+                <tr>
+                  <td colSpan="5">No Patients found.</td>
+                </tr>
+              ) : (
+                currentPatients.map((patient, index) => (
+                  <tr key={index} onClick={() => handlePatientClick(patient.id)}>
+                    <td>{index + 1}</td>
+                    <td>{patient.fullName}</td>
+                    <td>{patient.birthDate}</td>
+                    <td>{patient.gender.charAt(0).toUpperCase()}</td>                    
+                    <td>
+                      {patient.registrationDate
+                        ? new Date(patient.registrationDate).toLocaleDateString("en-CA")
+                        : "No Registration Date."}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+          {totalPages > 1 && (
+            <div className="pagination">
+              <button onClick={handlePreviousPage} disabled={currentPage === 1}>
+                Previous
+              </button>
+              <span>
+                Page {currentPage} of {totalPages}
+              </span>
+              <button onClick={handleNextPage} disabled={currentPage === totalPages}>
+                Next
+              </button>
+            </div>
+          )}
+          <Modal
+            show={showModal}
+            handleClose={() => setShowModal(false)}
+            handleSave={handleAddPatient}
+            newPatient={newPatient}
+            setNewPatient={setNewPatient}
+          />          
+          <NewUserModal
+            show={showUserModal}
+            handleClose={() => setShowUserModal(false)}
+            handleSave={handleSaveUser}
+            newUser={newUser}
+            setNewUser={setNewUser}
+          />
+          <ToastContainer />
     </div>
-  </div>
-
-  <table className="patients-table">
-    <thead>
-      <tr>
-        <th>#</th>
-        <th>Full Name</th>
-        <th>Gender</th>
-        <th>Birth Date</th>
-      </tr>
-    </thead>
-    <tbody>
-      {filteredPatients.length === 0 ? (
-        <tr>
-          <td colSpan="4">No Patients found.</td>
-        </tr>
-      ) : (
-        currentPatients.map((patient, index) => (
-          <tr key={index} onClick={() => handlePatientClick(patient.id)}>
-            <td>{index + 1}</td>
-            <td>{patient.fullName}</td>
-            <td>{patient.gender}</td>
-            <td>{patient.birthDate}</td>
-          </tr>
-        ))
-      )}
-    </tbody>
-  </table>
-
-  {totalPages > 1 && (
-    <div className="pagination">
-      <button onClick={handlePreviousPage} disabled={currentPage === 1}>
-        Previous
-      </button>
-      <span>
-        Page {currentPage} of {totalPages}
-      </span>
-      <button onClick={handleNextPage} disabled={currentPage === totalPages}>
-        Next
-      </button>
-    </div>
-  )}
-
-  <Modal
-    show={showModal}
-    handleClose={() => setShowModal(false)}
-    handleSave={handleAddPatient}
-    newPatient={newPatient}
-    setNewPatient={setNewPatient}
-  />
-  <NewUserModal
-        show={showUserModal}
-        handleClose={() => setShowUserModal(false)}
-        handleSave={handleSaveUser}
-        newUser={newUser}
-        setNewUser={setNewUser}
-      />
-</div>
   );
 };
 

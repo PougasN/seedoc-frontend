@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import logo from '../assets/seedoc-high-resolution-logo-transparent.png';
-
 import './Login.css';
 
 const Login = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const navigate = useNavigate();  
+  const [loginError, setLoginError] = useState(false);
+  const navigate = useNavigate();
 
   const handleLogin = async () => {
     const credentials = btoa(`${username}:${password}`);
@@ -29,17 +29,15 @@ const Login = () => {
         localStorage.setItem('userName', username);      
         localStorage.setItem('practitionerId', data.practitionerId);
         localStorage.setItem('id', data.id);
-
-        console.log('here we are as : ' , username, 'with id ', data.id , 'and practitionerId ' , data.practitionerId);
-        // Redirect based on role
+        
         if (data.role === 'ROLE_ADMIN') {
           navigate('/patients');
-        } else if (data.role === 'ROLE_DOCTOR' || data.role === 'ROLE_NURSE') {
+        } else if (data.role === 'ROLE_DOCTOR' || data.role === 'ROLE_PREREADER') {
           navigate('/doctor-encounters');
         }
 
       } else if (response.status === 401) {
-        alert('Invalid username or password');
+        setLoginError(true);
       } else {
         console.error(`Login failed with status: ${response.status}`);
       }
@@ -47,6 +45,12 @@ const Login = () => {
       console.error('Error during login:', error);
     }
   }; 
+
+  const handleKeyDown = (event) => {
+    if (event.key === 'Enter') {
+      handleLogin();
+    }
+  };
 
   return (
     <div className="login-container">
@@ -56,13 +60,16 @@ const Login = () => {
         placeholder="Username"
         value={username}
         onChange={(e) => setUsername(e.target.value)}
+        onKeyDown={handleKeyDown}
       />
       <input
         type="password"
         placeholder="Password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
+        onKeyDown={handleKeyDown}
       />
+      {loginError && <p className="error-message">Invalid credentials.</p>}
       <button onClick={handleLogin}>Login</button>
     </div>
   );

@@ -133,9 +133,9 @@ button {
   color: white;
   cursor: pointer;
   position: absolute;
-  top: 20px;
+  top: 80px;
   left: 20px;
-  z-index: 1001;
+  z-index: 999;
 }
 
 .info-icon:hover {
@@ -149,7 +149,7 @@ button {
   color: white;
   cursor: pointer;
   position: absolute;
-  top: 80px;
+  top: 20px;
   left: 20px;
   z-index: 999;
 }
@@ -196,16 +196,25 @@ button {
   align-items: center;
   margin-right: 10px;
   width: 120px;
+  border: 2px solid transparent;
+  border-radius: 4px;
+  transition: border-color 0.3s, box-shadow 0.3s;
 }
 
+.finding-item.commented {
+  border: 2px solid #28a745;
+  box-shadow: 0 2px 8px rgba(40, 167, 69, 0.4);
+}
 
+.finding-item.no-comment {
+  border: 2px solid #dc3545;
+  box-shadow: 0 2px 8px rgba(220, 53, 69, 0.4);
+}
 
 .timestamp {
   color: white !important;
-  font-weight: bold; /* Optional: make it bold for better visibility */
+  font-weight: bold;
 }
-
-
 
 .finding-thumbnail {
   width: 120px;
@@ -285,7 +294,6 @@ button {
   padding: 5px;
 }
 
-/* Report Modal - Unique Findings Preview Section */
 .report-modal-findings-preview {
   display: flex;
   overflow-x: auto;
@@ -298,7 +306,6 @@ button {
   border-radius: 5px;
 }
 
-/* Individual Finding Item in Report Modal with Selection */
 .report-modal-finding-item {
   display: flex;
   flex-direction: column;
@@ -317,7 +324,7 @@ button {
 }
 
 .report-modal-finding-item.selected .report-modal-finding-thumbnail {
-  box-shadow: 0px 0px 10px 2px #007bff; /* Highlight border for selected in report modal */
+  box-shadow: 0px 0px 10px 2px #007bff;
 }
 
 .report-modal-finding-item p {
@@ -327,7 +334,6 @@ button {
   text-align: center;
 }
 
-/* Modal - Conclusion Input for Report */
 .report-modal-conclusion-input {
   width: 96.5%;
   height: 80px;
@@ -339,7 +345,6 @@ button {
   resize: none;
 }
 
-/* Aligning Modal Buttons for Report */
 .report-modal-buttons {
   display: flex;
   justify-content: flex-end;
@@ -348,14 +353,13 @@ button {
   justify-self: center;
 }
 
-/* Report Modal Specific Styles */
 .report-modal-content {
   background-color: #fefefe;
   margin: auto;
   padding: 20px;
   border: 1px solid #888;
-  width: 90%; /* Increase width for the report modal */
-  max-width: 800px; /* Set a larger maximum width */
+  width: 90%;
+  max-width: 800px;
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
   border-radius: 10px;
   text-align: left;
@@ -389,7 +393,7 @@ button {
 }
 
 .full-screen .controls-toolbar {
-  height: 5%; /* Adjust the height of the controls toolbar in full-screen */
+  height: 5%;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -426,17 +430,13 @@ video::-webkit-media-controls-fullscreen-button {
   display: none;
 }
 
-video::-webkit-media-controls-panel {
+video::-webkit-media-controls-play-button {
   display: none;
 }
 
-/* .controls-toolbar {
-  display: flex;
-  justify-content: space-between;
-  width: 100%;
-  background-color: #333;
-  padding: 10px;
-} */
+video::-webkit-media-controls-volume-button {
+  display: none;
+}
 
 .controls-left,
 .controls-right {
@@ -445,38 +445,22 @@ video::-webkit-media-controls-panel {
   gap: 10px;
 }
 
-/* .controls-toolbar button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  background-color: #333;
-  color: white;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  font-size: 18px;
-} */
-
 .overlay-finding-button.faded {
   opacity: 0.5;
   pointer-events: none;
 }
 
-/* Common styles for buttons */
 .controls-left button,
 .controls-right button {
   position: relative;
   cursor: pointer;
 }
 
-/* Tooltip default state */
 .controls-left button::after,
 .controls-right button::after {
   content: '';
   position: absolute;
-  bottom: 120%; /* Adjust as needed */
+  bottom: 120%;
   left: 50%;
   transform: translateX(-50%);
   background-color: rgba(0, 0, 0, 0.75);
@@ -491,9 +475,62 @@ video::-webkit-media-controls-panel {
   z-index: 10;
 }
 
-/* Tooltip visible on hover */
 .controls-left button:hover::after,
 .controls-right button:hover::after {
   content: attr(data-tooltip);
   opacity: 1;
+}
+
+.success-message {
+  color: #28a745;
+  background-color: #d4edda;
+  padding: 8px;
+  border-radius: 5px;
+  margin-bottom: 10px;
+  text-align: center;
+  font-weight: bold;
+  transition: opacity 1s ease-out;
+}
+
+.success-message.hidden {
+  opacity: 0;
+}
+
+@keyframes fadeInOut {
+  0% { opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.finding-added-message {
+  position: absolute;
+  top: 50%;
+  right: calc(100% + 10px);
+  transform: translateY(-50%);
+  background-color: #28a745;
+  color: white;
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: bold;
+  box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+  opacity: 0;
+  animation: fadeInOut 2s ease-out;
+  z-index: 1000;
+}
+
+@keyframes fadeInOut {
+  0% {
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
 }

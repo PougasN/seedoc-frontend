@@ -10,17 +10,16 @@ const Header = () => {
     const role = localStorage.getItem('userRole');
     const username = localStorage.getItem('userName');
 
-    // Map roles to display-friendly versions
     const formatRole = (role) => {
       switch (role) {
         case 'ROLE_ADMIN':
           return 'Admin';
         case 'ROLE_DOCTOR':
           return 'Dr.';
-        case 'ROLE_NURSE':
-          return 'Nr.';
+        case 'ROLE_PREREADER':
+          return 'Pr.';
         default:
-          return 'User'; // Default if role does not match
+          return 'User';
       }
     };
 
@@ -40,7 +39,7 @@ const Header = () => {
         <span style={{ marginLeft: '20px' }}>Capsule Reader Software</span>
       </div>
       <div style={{ display: 'flex', alignItems: 'center' }}>
-        <span style={{ marginRight: '20px' }}>Welcome, {userInfo.role} {userInfo.username}</span>
+        <span style={{ marginRight: '20px' }}>{userInfo.role} {userInfo.username}</span>
         <button onClick={handleLogout}>Logout</button>
       </div>
     </header>

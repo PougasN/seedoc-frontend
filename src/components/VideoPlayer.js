@@ -1,16 +1,15 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import ReactPlayer from 'react-player';
 import Sidebar from './Sidebar';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faSpinner, faArrowRight, faArrowLeft, faExpand, faCompress, faFileWaveform, faInfo, faBars, faInfoCircle, faPlay, faPause, faUndoAlt, faRedoAlt, faStepBackward, faStepForward, faForward, faForwardFast, faBackwardFast, faBackward, faCircleArrowLeft, faCirclePlus } from '@fortawesome/free-solid-svg-icons';
+import { faSpinner, faArrowRight, faArrowLeft, faExpand, faCompress, faHome, faFileWaveform, faInfo, faBars, faInfoCircle, faPlay, faPause, faUndoAlt, faRedoAlt, faStepBackward, faStepForward, faForward, faForwardFast, faBackwardFast, faBackward, faCircleArrowLeft, faCirclePlus } from '@fortawesome/free-solid-svg-icons';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import './VideoPlayer.css';
 
 const VideoPlayer = () => {
   const { encounterId, mediaId } = useParams();
-  const playerRef = useRef(null);
-  const canvasRef = useRef(null);
-  const navigate = useNavigate();
   const [isPlaying, setIsPlaying] = useState(false);
   const [showCommentModal, setShowCommentModal] = useState(false);
   const [currentTime, setCurrentTime] = useState(null);
@@ -25,14 +24,7 @@ const VideoPlayer = () => {
   const [conclusion, setConclusion] = useState('');
   const [speed, setSpeed] = useState(1);
   const [duration, setDuration] = useState(0);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [patientDetails, setPatientDetails] = useState({
-    patientId: '',
-    name: '',
-    surname: '',
-    birthdate: '',
-    gender: ''
-  });
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);  
   const [showFindingModal, setShowFindingModal] = useState(false);
   const [selectedFinding, setSelectedFinding] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -53,13 +45,28 @@ const VideoPlayer = () => {
   const videoContainerRef = useRef(null);
   const [currentFindingIndex, setCurrentFindingIndex] = useState(0);  
   const [isPreRead, setIsPreRead] = useState('');
+  const location = useLocation();
+  const { encounterDescription } = location.state || {};
+  const [successMessage, setSuccessMessage] = useState('');
+  const [overlayMessage, setOverlayMessage] = useState(false);
+  const [findingAdded, setFindingAdded] = useState(false);
+  const [patientDetails, setPatientDetails] = useState({
+    patientId: '',
+    name: '',
+    surname: '',
+    birthdate: '',
+    gender: ''
+  });
+  const playerRef = useRef(null);
+  const canvasRef = useRef(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchVideo = async () => {
       try {
         const response = await fetch(`${process.env.REACT_APP_API_URL}/video/${encounterId}`, {
           headers: {
-            'Authorization': authCredentials, // Use stored credentials
+            'Authorization': authCredentials,
           },
         });
         if (response.ok) {
@@ -100,15 +107,13 @@ const VideoPlayer = () => {
           },
         });
         const encounterData = await encounterResponse.json();
-        setEncounterStatus(encounterData.status); // Store encounter status
+        setEncounterStatus(encounterData.status);
         
-        //HERE ADDON
         const preReadExtension = encounterData.extension?.find(
-          (ext) => ext.url === 'http://example.com/fhir/StructureDefinition/nursePreReadStatus'
+          (ext) => ext.url === 'http://example.com/fhir/StructureDefinition/PreReadStatus'
         );
-        setIsPreRead(preReadExtension?.valueBoolean || false); // Set preRead status based on extension
-        console.log('lets see if preRead is = ' , isPreRead);
-
+        setIsPreRead(preReadExtension?.valueBoolean || false);
+  
         const patientId = encounterData.subject.reference.split('/')[1];
   
         const patientResponse = await fetch(`${process.env.REACT_APP_API_URL}/patient/${patientId}`, {
@@ -148,7 +153,7 @@ const VideoPlayer = () => {
     };
   
     const handleScroll = (event) => {
-      const scrollSensitivity = 0.2; // seconds per scroll
+      const scrollSensitivity = 0.2;
       if (playerRef.current) {
         const currentTime = playerRef.current.getCurrentTime();
         const newTime = event.deltaY < 0 ? currentTime - scrollSensitivity : currentTime + scrollSensitivity;
@@ -156,35 +161,105 @@ const VideoPlayer = () => {
       }
     };
   
-    // Set up fullscreen change and scroll events
+    const handleKeyDown = (event) => {
+      if (isFullScreen && event.key.toLowerCase() === 'f') {
+        handleAddFinding();
+      }
+    };
+  
     document.addEventListener('fullscreenchange', handleFullScreenChange);
     if (isFullScreen) {
       window.addEventListener('wheel', handleScroll);
+      document.addEventListener('keydown', handleKeyDown);
     }
   
     return () => {
-      // Clean up both event listeners
       document.removeEventListener('fullscreenchange', handleFullScreenChange);
       window.removeEventListener('wheel', handleScroll);
+      document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [mediaId, encounterId, isFullScreen]);
-
+  }, [mediaId, encounterId, isFullScreen, authCredentials]);
+  
+  const handleAddFinding = async () => {
+    if (playerRef.current) {
+      const time = playerRef.current.getCurrentTime();
+      const frameImage = captureFrame();
+  
+      const existingFinding = findings.find((finding) => {
+        const timeTolerance = 0.1;
+        return Math.abs(finding.time - time) <= timeTolerance;
+      });
+  
+      if (existingFinding) {
+        alert("A finding already exists at this time. Please choose a different moment.");
+        return;
+      }
+  
+      if (frameImage) {
+        const newFinding = {
+          mediaId,
+          time,
+          comment: "",
+          frame: frameImage,
+          frameUrl: URL.createObjectURL(dataURLtoFile(frameImage, `frame-${Date.now()}.png`)),
+        };
+  
+        try {
+          const formData = new FormData();
+          formData.append('mediaId', newFinding.mediaId);
+          formData.append('time', newFinding.time);
+          formData.append('comment', newFinding.comment);
+  
+          const uniqueFrameName = `frame-${new Date().getTime()}.png`;
+          formData.append('frame', dataURLtoFile(newFinding.frame, uniqueFrameName));
+  
+          const response = await fetch(`${process.env.REACT_APP_API_URL}/findings`, {
+            method: 'POST',
+            headers: {
+              'Authorization': authCredentials,
+            },
+            body: formData,
+          });
+  
+          if (response.ok) {
+            const savedFinding = await response.json();
+  
+            savedFinding.frameUrl = newFinding.frameUrl;
+  
+            setFindings((prevFindings) => [...prevFindings, savedFinding].sort((a, b) => a.time - b.time));
+  
+            setFindingAdded(true);
+  
+            setTimeout(() => {
+              setFindingAdded(false);
+            }, 2000);
+  
+          } else {
+            console.error('Error saving finding:', response.statusText);
+          }
+        } catch (err) {
+          console.error('Error saving finding:', err);
+        }
+      }
+    }
+  };   
+  
   const fetchFindings = async () => {
     if (!mediaId) return;
     try {
-      const authCredentials = localStorage.getItem('authCredentials'); // Retrieve stored credentials
+      const authCredentials = localStorage.getItem('authCredentials');
   
       const response = await fetch(`${process.env.REACT_APP_API_URL}/findings/get/${mediaId}`, {
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': authCredentials, // Use stored credentials
+          'Authorization': authCredentials,
         },
       });
   
       if (response.ok) {
         const data = await response.json();
-        setFindings(data);
-        console.log('Fetched FINDINGS successfully!!!');
+        const sortedFindings = data.sort((a, b) => a.time - b.time);
+        setFindings(sortedFindings);
       } else {
         console.error('Error fetching findings:', response.statusText);
       }
@@ -235,35 +310,11 @@ const VideoPlayer = () => {
     }
   };
 
-  const handleAddFinding = () => {
-    if (playerRef.current) {
-      const time = playerRef.current.getCurrentTime();
-      const frameImage = captureFrame();
-  
-      // Check if the current time (with milliseconds precision) already exists in findings
-      const existingFinding = findings.find((finding) => {
-        const timeTolerance = 0.1; // 100 milliseconds tolerance
-        return Math.abs(finding.time - time) <= timeTolerance;
-      });
-  
-      if (existingFinding) {
-        alert("A finding already exists at this time. Please choose a different moment.");
-        return; // Exit the function if a duplicate is found
-      }
-  
-      if (frameImage) {
-        setCurrentTime(time);
-        setCurrentFrame(frameImage);
-        setShowCommentModal(true);
-      }
-    }
-  };
-
   const handleSaveComment = async () => {
     const newFinding = {
       mediaId: mediaId,
       time: currentTime,
-      comment: selectedComment, // Use selectedComment here
+      comment: selectedComment,
       frame: currentFrame,
     };
   
@@ -276,21 +327,21 @@ const VideoPlayer = () => {
       const uniqueFrameName = `frame-${new Date().getTime()}.png`;
       formData.append('frame', dataURLtoFile(newFinding.frame, uniqueFrameName));
   
-      const authCredentials = localStorage.getItem('authCredentials'); // Retrieve stored credentials
+      const authCredentials = localStorage.getItem('authCredentials');
   
       const response = await fetch(`${process.env.REACT_APP_API_URL}/findings`, {
         method: 'POST',
         headers: {
-          'Authorization': authCredentials, // Use stored credentials
+          'Authorization': authCredentials,
         },
         body: formData,
       });
   
       if (response.ok) {
-        await response.json(); // Wait for the response and ignore the savedFinding here
+        await response.json();
         setShowCommentModal(false);
-        setSelectedComment(''); // Reset selected comment
-        fetchFindings(); // Refresh findings list
+        setSelectedComment('');
+        fetchFindings();
       } else {
         console.error('Error saving finding:', response.statusText);
       }
@@ -316,7 +367,6 @@ const VideoPlayer = () => {
   };  
 
   const handleFinalization = () => {
-    // Validation: Check if at least one finding is selected and conclusion is not empty
     if (selectedFrames.length === 0) {
       setReportError('Please select at least one finding.');
       return;
@@ -326,10 +376,7 @@ const VideoPlayer = () => {
       return;
     }
   
-    // If validation passes, clear any previous error messages
-    setReportError('');
-  
-    // Show confirmation modal
+    setReportError('');  
     setShowConfirmationModal(true);
   };  
 
@@ -354,7 +401,6 @@ const VideoPlayer = () => {
     const authCredentials = localStorage.getItem('authCredentials');
   
     try {
-      // Create diagnostic report
       const response = await fetch(`${process.env.REACT_APP_API_URL}/diagnostic-report`, {
         method: 'POST',
         headers: {
@@ -370,9 +416,7 @@ const VideoPlayer = () => {
   
       const savedReport = await response.json();
       const diagnosticReportId = savedReport.id;
-      console.log('Diagnostic Report created with ID = ', diagnosticReportId);
 
-      // Update encounter status to finished
       const updateEncounterResponse = await fetch(`${process.env.REACT_APP_API_URL}/encounter/${encounterId}/status`, {
         method: 'PUT',
         headers: {
@@ -384,13 +428,8 @@ const VideoPlayer = () => {
 
       if (!updateEncounterResponse.ok) {
         throw new Error('Error updating encounter status');
-      }
-
-      console.log('Encounter status updated to finished');
-      
-      // Navigate back to PatientDetails page
+      }      
       navigate(-1);
-
     } catch (err) {
       console.error('Error finalizing report:', err);
     }
@@ -405,7 +444,7 @@ const VideoPlayer = () => {
     const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
     const m = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
     const s = Math.floor(seconds % 60).toString().padStart(2, '0');
-    const ms = Math.floor((seconds % 1) * 1000).toString().padStart(3, '0'); // Extract milliseconds
+    const ms = Math.floor((seconds % 1) * 1000).toString().padStart(3, '0');
   
     return `${h}:${m}:${s}.${ms}`;
   };
@@ -463,13 +502,54 @@ const VideoPlayer = () => {
       playerRef.current.seekTo(previousFinding.time, 'seconds');
       setCurrentFindingIndex(currentFindingIndex - 1);
     }
-  };
+  };  
+
+  const handleSaveCommentForFinding = async (findingId) => {
+    if (!selectedComment) {
+      toast.error("Please select a pathology before saving.", {
+        position: "top-right",
+        autoClose: 3000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        progress: undefined,
+        theme: "colored",
+      });
+      return;
+    }
   
-
-  //===============================================================================================
-
-  //====================================================================================================
-
+    try {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/findings/${findingId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": authCredentials,
+        },
+        body: JSON.stringify({ comment: selectedComment }),
+      });
+  
+      if (response.ok) {
+        const updatedFinding = await response.json();
+  
+        setFindings((prevFindings) =>
+          prevFindings.map((finding) =>
+            finding.id === findingId ? { ...finding, comment: updatedFinding.comment } : finding
+          )
+        );
+  
+        setSelectedComment("");
+        setSelectedFinding((prevFinding) => ({
+          ...prevFinding,
+          comment: updatedFinding.comment,
+        }));
+      } else {
+        console.error("Error updating finding:", response.statusText);
+      }
+    } catch (error) {
+      console.error("Error saving comment:", error);
+    }
+  };
 
   return (
     <div className="video-player-container">
@@ -478,18 +558,19 @@ const VideoPlayer = () => {
         <FontAwesomeIcon icon={faSpinner} spin size="5x" />
       </div>
     ) : (
-        <>
+        <>        
+        {!isSidebarOpen && (
+        <button className="back-icon" onClick={() => navigate(-1)}>
+          <FontAwesomeIcon icon={faHome} />
+        </button>
+      )}
       <button className="info-icon" onClick={toggleSidebar}>
         <FontAwesomeIcon icon={faInfoCircle} />        
-      </button>
-      {!isSidebarOpen && (
-        <button className="back-icon" onClick={() => navigate(-1)}>
-          <FontAwesomeIcon icon={faCircleArrowLeft} />
-        </button>
-      )}      
+      </button>            
       <Sidebar
         isOpen={isSidebarOpen}
         toggleSidebar={toggleSidebar}
+        encounterDesc={encounterDescription}
         encounterId={encounterId}
         mediaId={mediaId}
         patientId={patientDetails.patientId}
@@ -497,8 +578,8 @@ const VideoPlayer = () => {
         surname={patientDetails.surname}
         birthdate={patientDetails.birthdate}
         gender={patientDetails.gender}
-        encounterStatus={encounterStatus}  // Pass encounterStatus to Sidebar
-        role={userRole}  // Pass user role to Sidebar
+        encounterStatus={encounterStatus}
+        role={userRole}
         showReportModalHandler={() => setShowReportModal(true)}
       />     
       <div className={`video-section ${isFullScreen ? 'full-screen' : ''}`}>       
@@ -512,20 +593,31 @@ const VideoPlayer = () => {
             onDuration={(duration) => setDuration(duration)}
             controls
             width={isFullScreen ? "100%" : "100%"}
-            height={isFullScreen ? "90vh" : "auto"} // Sets video height to 80% of viewport in full-screen mode
+            height={isFullScreen ? "90vh" : "auto"}
             style={{
-              maxHeight: isFullScreen ? '90vh' : 'auto', // Limits video height in full-screen mode
-              maxWidth: isFullScreen ? '80vw' : '100%',  // Limits video width in full-screen mode
-              margin: isFullScreen ? 'auto' : '0', // Centers video in full-screen mode
+              maxHeight: isFullScreen ? '90vh' : 'auto',
+              maxWidth: isFullScreen ? '80vw' : '100%',
+              margin: isFullScreen ? 'auto' : '0',
               display: 'block'
             }}
             config={{ file: { attributes: { crossOrigin: 'anonymous' } } }}
           />
-          <div className="overlay-button-wrapper">            
-            {encounterStatus === 'in-progress' && (userRole === 'ROLE_DOCTOR' || (userRole === 'ROLE_NURSE' && !isPreRead)) ? (
-              <div title="Add Finding" className="overlay-finding-button" onClick={handleAddFinding}>
-                <FontAwesomeIcon icon={faCirclePlus} />
-              </div>
+          <div className="overlay-button-wrapper">
+            {encounterStatus === 'in-progress' && (userRole === 'ROLE_DOCTOR' || (userRole === 'ROLE_PREREADER' && !isPreRead)) ? (
+              <>
+                {findingAdded && (
+                  <div className="finding-added-message">
+                    Finding added!
+                  </div>
+                )}
+                <div
+                  title="Add Finding with 'F'"
+                  className="overlay-finding-button"
+                  onClick={handleAddFinding}
+                >
+                  <FontAwesomeIcon icon={faCirclePlus} />
+                </div>
+              </>
             ) : (
               <div title="Add Finding" className="overlay-finding-button faded">
                 <FontAwesomeIcon icon={faCirclePlus} />
@@ -589,13 +681,13 @@ const VideoPlayer = () => {
             <span>{formatTime(currentTime)} / {formatTime(duration)}</span>
           </div>
         </div>             
-      </div>
+      </div>      
       <div className="findings-preview">
         {findings.map((finding, index) => (
           <div
             key={index}
-            className="finding-item"
-            onClick={() => handleFindingClick(finding)} // Open modal on click
+            className={`finding-item ${finding.comment?.trim() ? 'commented' : 'no-comment'}`} // Add dynamic class
+            onClick={() => handleFindingClick(finding)} // Existing click handler
           >
             <img 
               src={finding.frameUrl} 
@@ -605,24 +697,8 @@ const VideoPlayer = () => {
             <p className="timestamp">{formatTime(finding.time)}</p>
           </div>
         ))}
-      </div>
-      {showFindingModal && selectedFinding && (
-        <div className="modal">
-          <div className="modal-content">
-            <h2>Finding Details</h2>
-            <img 
-              src={selectedFinding.frameUrl} 
-              alt="Finding Frame" 
-              className="modal-finding-image" 
-            />
-            <p><strong>Timestamp:</strong> {selectedFinding.time ? formatTime(selectedFinding.time) : ''}</p>
-            <p><strong>Comment:</strong> {selectedFinding.comment}</p>
-            <button onClick={goToFinding}>Go to Finding</button>
-            <button onClick={closeFindingModal}>Close</button>
-          </div>
-        </div>
-      )}
-      <canvas ref={canvasRef} style={{ display: 'none' }} width="640" height="640"></canvas>
+      </div>      
+      <canvas ref={canvasRef} style={{ display: 'none' }} width="640" height="640"></canvas>  
       {showCommentModal && (
       <div className="modal">
         <div className="modal-content">
@@ -645,7 +721,7 @@ const VideoPlayer = () => {
               marginTop: '5px',
               boxSizing: 'border-box'
             }}          >
-            <option value="" disabled>Select...</option>
+            <option value="" disabled>Select Pathology...</option>
             {predefinedComments.map((comment, index) => (
               <option key={index} value={comment}>{comment}</option>
             ))}
@@ -666,25 +742,56 @@ const VideoPlayer = () => {
           </div>
         </div>
       )}
-      {showFindingsModal && (
+      {showFindingModal && selectedFinding && (
         <div className="modal">
           <div className="modal-content">
-            <h2>Findings</h2>
-            {findings.length === 0 ? (
-              <p>No findings added.</p>
-            ) : (
-              <ul>
-                {findings.map((finding, index) => (
-                  <li key={index}>
-                    <p>Time: {new Date(finding.time * 1000).toISOString().substr(11, 8)}</p>
-                    <p>Frame:</p>
-                    <img src={finding.frameUrl} alt={`Frame at ${finding.time}`} width="90" height="90" />
-                    <p>Comment: {finding.comment}</p>
-                  </li>
-                ))}
-              </ul>
+            <h2>Finding Details</h2>
+
+            {successMessage && (
+              <p className={`success-message ${successMessage === null ? 'hidden' : ''}`}>
+                {successMessage}
+              </p>
             )}
-            <button onClick={() => setShowFindingsModal(false)}>Close</button>
+            <img 
+              src={selectedFinding.frameUrl} 
+              alt="Finding Frame" 
+              className="modal-finding-image" 
+            />
+            <p><strong>Timestamp:</strong> {selectedFinding.time ? formatTime(selectedFinding.time) : ''}</p>
+            {selectedFinding.comment ? (
+              <p><strong>Comment:</strong> {selectedFinding.comment}</p>
+            ) : (
+              <>
+                <select
+                  value={selectedComment}
+                  onChange={(e) => setSelectedComment(e.target.value)}
+                  style={{
+                    width: '100%',
+                    height: '40px',
+                    marginTop: '5px',
+                    boxSizing: 'border-box',
+                  }}
+                >
+                  <option value="" disabled>Select Pathology...</option>
+                  {predefinedComments.map((comment, index) => (
+                    <option key={index} value={comment}>{comment}</option>
+                  ))}
+                </select>
+              </>
+            )}
+            <div className="modal-buttons">
+              {selectedFinding.comment ? null : (
+                <button
+                  onClick={async () => {
+                    await handleSaveCommentForFinding(selectedFinding.id);
+                  }}
+                >
+                  Save Comment
+                </button>
+              )}
+              <button onClick={goToFinding}>Go to Finding</button>
+              <button onClick={closeFindingModal}>Close</button>
+            </div>
           </div>
         </div>
       )}
@@ -753,6 +860,7 @@ const VideoPlayer = () => {
       )}
       </>
       )}
+      <ToastContainer />
     </div>
   );
 };

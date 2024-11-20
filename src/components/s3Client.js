@@ -1,13 +1,13 @@
 import { S3Client } from '@aws-sdk/client-s3';
 
 const s3Client = new S3Client({
-  region: 'us-east-1', // Replace with your MinIO region
-  endpoint: 'http://127.0.0.1:9000', // MinIO endpoint
+  region: 'us-east-1',
+  endpoint: 'http://127.0.0.1:9000',
   credentials: {
-    accessKeyId: 'PougasN', // Replace with your MinIO access key
-    secretAccessKey: 'minioadmin', // Replace with your MinIO secret key
+    accessKeyId: 'PougasN',
+    secretAccessKey: 'minioadmin',
   },
-  forcePathStyle: true, // Required for MinIO
+  forcePathStyle: true,
 });
 
 export default s3Client;
